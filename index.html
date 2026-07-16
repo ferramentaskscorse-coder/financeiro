@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Controle Financeiro — Protótipo</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root{
+    --brown-900:#2A1810;
+    --brown-800:#3C2416;
+    --brown-700:#4f2c1d;
+    --paper:#F5EDE1;
+    --paper-line:#E4D5C0;
+    --orange:#BE4D00;
+    --orange-soft:#F0DCC9;
+    --gold:#C9A84C;
+    --gold-soft:#F3E9CE;
+    --wine:#7A2E1D;
+    --wine-soft:#EAD9CF;
+    --ink:#2A1810;
+    --ink-soft:#6B5A48;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Work Sans',sans-serif;
+    background:var(--brown-900);
+    color:var(--ink);
+  }
+  .app{
+    display:flex;
+    min-height:100vh;
+  }
+  .sidebar{
+    width:220px;
+    background:var(--brown-900);
+    padding:28px 16px;
+    flex-shrink:0;
+    border-right:1px solid #1c0f08;
+  }
+  .brand{
+    font-family:'Fraunces',serif;
+    font-size:20px;
+    font-weight:600;
+    color:var(--gold);
+    margin:0 0 4px 4px;
+  }
+  .brand-sub{
+    font-size:11px;
+    color:#a8907a;
+    margin:0 0 28px 4px;
+    letter-spacing:.04em;
+  }
+  .nav-item{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:11px 12px;
+    border-radius:8px;
+    color:#d9c7b3;
+    font-size:14px;
+    cursor:pointer;
+    margin-bottom:4px;
+    transition:background .15s;
+  }
+  .nav-item:hover{ background:#4a2c1c; }
+  .nav-item.active{ background:var(--orange); color:#fff; font-weight:500; }
+  .main{
+    flex:1;
+    background:var(--paper);
+    padding:32px 40px;
+    min-height:100vh;
+  }
+  h1{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:26px;
+    margin:0 0 6px;
+    color:var(--brown-700);
+  }
+  .subtitle{
+    color:var(--ink-soft);
+    font-size:14px;
+    margin:0 0 28px;
+  }
+  .card{
+    background:#fff;
+    border:1px solid var(--paper-line);
+    border-radius:var(--radius);
+    padding:22px 24px;
+    margin-bottom:20px;
+  }
+  .card h2{
+    font-family:'Fraunces',serif;
+    font-size:17px;
+    font-weight:600;
+    margin:0 0 16px;
+    color:var(--brown-700);
+  }
+  label{
+    display:block;
+    font-size:12px;
+    color:var(--ink-soft);
+    margin-bottom:4px;
+    font-weight:500;
+  }
+  input, select{
+    width:100%;
+    padding:9px 11px;
+    border:1px solid var(--paper-line);
+    border-radius:7px;
+    font-size:14px;
+    font-family:'Work Sans',sans-serif;
+    background:#fdfaf5;
+    color:var(--ink);
+  }
+  input:focus, select:focus{
+    outline:none;
+    border-color:var(--orange);
+  }
+  .row{
+    display:grid;
+    gap:12px;
+    margin-bottom:14px;
+  }
+  .row-4{ grid-template-columns:1.4fr 1fr 1fr 1fr; }
+  .row-3{ grid-template-columns:1fr 1fr 1fr; }
+  .row-2{ grid-template-columns:1fr 1fr; }
+  button{
+    font-family:'Work Sans',sans-serif;
+    font-weight:500;
+    font-size:14px;
+    padding:10px 18px;
+    border-radius:7px;
+    border:none;
+    cursor:pointer;
+    transition:opacity .15s;
+  }
+  button:hover{ opacity:.88; }
+  .btn-primary{ background:var(--orange); color:#fff; }
+  .btn-ghost{ background:transparent; color:var(--brown-700); border:1px solid var(--paper-line); }
+  .btn-danger{ background:transparent; color:var(--wine); border:1px solid var(--wine-soft); padding:5px 10px; font-size:12px; }
+  .tag{
+    display:inline-block;
+    font-size:11px;
+    font-weight:500;
+    padding:3px 9px;
+    border-radius:20px;
+    letter-spacing:.02em;
+  }
+  .tag-receita{ background:var(--gold-soft); color:#6b5216; }
+  .tag-despesa{ background:var(--wine-soft); color:var(--wine); }
+  .tag-fixa{ background:#eee; color:#666; }
+  .tag-variavel{ background:var(--orange-soft); color:var(--orange); }
+  .ledger-row{
+    display:grid;
+    grid-template-columns:auto 1fr auto auto auto;
+    gap:14px;
+    align-items:center;
+    padding:12px 0;
+    border-bottom:1px dashed var(--paper-line);
+    font-size:14px;
+  }
+  .ledger-row:last-child{ border-bottom:none; }
+  .money{
+    font-family:'IBM Plex Mono',monospace;
+    font-variant-numeric:tabular-nums;
+    font-weight:500;
+  }
+  .money.pos{ color:#3B6D11; }
+  .money.neg{ color:var(--wine); }
+  .stamp{
+    width:26px;height:26px;border-radius:50%;
+    background:var(--gold-soft);
+    color:#6b5216;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:11px;
+    border:1px solid var(--gold);
+    flex-shrink:0;
+  }
+  .metric-grid{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:16px;
+    margin-bottom:20px;
+  }
+  .metric{
+    background:#fff;
+    border:1px solid var(--paper-line);
+    border-radius:var(--radius);
+    padding:18px 20px;
+  }
+  .metric-label{
+    font-size:12px;
+    color:var(--ink-soft);
+    margin-bottom:6px;
+  }
+  .metric-value{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:24px;
+    font-weight:500;
+  }
+  .metric-value.underline-double{
+    border-bottom:3px double var(--brown-700);
+    padding-bottom:6px;
+    display:inline-block;
+  }
+  .person-bar-row{
+    display:grid;
+    grid-template-columns:120px 1fr 90px;
+    align-items:center;
+    gap:12px;
+    margin-bottom:10px;
+    font-size:13px;
+  }
+  .person-bar-track{
+    background:var(--paper);
+    border-radius:6px;
+    height:16px;
+    overflow:hidden;
+  }
+  .person-bar-fill{
+    height:100%;
+    background:var(--orange);
+    border-radius:6px;
+  }
+  .upload-zone{
+    border:2px dashed var(--paper-line);
+    border-radius:var(--radius);
+    padding:36px;
+    text-align:center;
+    color:var(--ink-soft);
+    cursor:pointer;
+    font-size:14px;
+  }
+  .upload-zone:hover{ border-color:var(--orange); color:var(--orange); }
+  .review-table{ width:100%; border-collapse:collapse; font-size:13px; }
+  .review-table th{
+    text-align:left;
+    font-weight:500;
+    color:var(--ink-soft);
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.03em;
+    padding:6px 8px;
+    border-bottom:1px solid var(--paper-line);
+  }
+  .review-table td{
+    padding:6px 8px;
+    border-bottom:1px dashed var(--paper-line);
+  }
+  .review-table input{ padding:6px 8px; font-size:13px; }
+  .empty-state{
+    text-align:center;
+    padding:40px 20px;
+    color:var(--ink-soft);
+    font-size:14px;
+  }
+  .loading-dot{
+    display:inline-block;
+    width:6px;height:6px;
+    border-radius:50%;
+    background:var(--orange);
+    margin-right:6px;
+    animation:pulse 1s infinite;
+  }
+  @keyframes pulse{ 0%,100%{opacity:.3;} 50%{opacity:1;} }
+  .helper{ font-size:12px; color:var(--ink-soft); margin-top:6px; }
+  .btn-mic{
+    background:var(--gold-soft);
+    color:#6b5216;
+    border:1px solid var(--gold);
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .btn-mic.listening{
+    background:var(--wine);
+    color:#fff;
+    border-color:var(--wine);
+  }
+  .btn-mic.listening .mic-dot{
+    background:#fff;
+  }
+  .mic-dot{
+    width:8px;height:8px;border-radius:50%;
+    background:#6b5216;
+    animation:pulse 1s infinite;
+  }
+  .voice-bar{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin-bottom:16px;
+  }
+  .voice-transcript{
+    font-size:13px;
+    color:var(--ink-soft);
+    font-style:italic;
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef } = React;
+
+const STORAGE_KEY = "financeiro-data";
+const MESES = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+
+function mesRefAtual(offset=0){
+  const d = new Date();
+  d.setMonth(d.getMonth()+offset);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+}
+function mesLabel(ref){
+  const [y,m] = ref.split("-");
+  return `${MESES[parseInt(m,10)-1]}/${y.slice(2)}`;
+}
+function fmtMoney(v){
+  return (v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+}
+function uid(){ return Math.random().toString(36).slice(2,10); }
+
+async function loadData(){
+  try{
+    const res = await window.storage.get(STORAGE_KEY);
+    if(res && res.value) return JSON.parse(res.value);
+  }catch(e){}
+  return { lancamentos: [], comprasCartao: [] };
+}
+async function saveData(data){
+  try{
+    await window.storage.set(STORAGE_KEY, JSON.stringify(data));
+  }catch(e){ console.error("Erro ao salvar:", e); }
+}
+
+function App(){
+  const [view, setView] = useState("lancamentos");
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(()=>{
+    loadData().then(d=>{ setData(d); setLoading(false); });
+  },[]);
+
+  async function updateData(next){
+    setData(next);
+    await saveData(next);
+  }
+
+  if(loading){
+    return <div style={{padding:"40px",color:"#8a7a68",fontFamily:"'Work Sans',sans-serif"}}>
+      <span className="loading-dot"></span>Carregando...
+    </div>;
+  }
+
+  return (
+    <div className="app">
+      <div className="sidebar">
+        <p className="brand">KlareIA</p>
+        <p className="brand-sub">controle financeiro</p>
+        <div className={`nav-item ${view==="lancamentos"?"active":""}`} onClick={()=>setView("lancamentos")}>Lançamentos</div>
+        <div className={`nav-item ${view==="cartao"?"active":""}`} onClick={()=>setView("cartao")}>Cartão de crédito</div>
+        <div className={`nav-item ${view==="dashboard"?"active":""}`} onClick={()=>setView("dashboard")}>Dashboard</div>
+      </div>
+      <div className="main">
+        {view==="lancamentos" && <Lancamentos data={data} updateData={updateData} />}
+        {view==="cartao" && <Cartao data={data} updateData={updateData} />}
+        {view==="dashboard" && <Dashboard data={data} />}
+      </div>
+    </div>
+  );
+}
+
+function Lancamentos({data, updateData}){
+  const [tipo, setTipo] = useState("receita");
+  const [natureza, setNatureza] = useState("fixa");
+  const [descricao, setDescricao] = useState("");
+  const [valor, setValor] = useState("");
+  const [categoria, setCategoria] = useState("");
+  const [mesRef, setMesRef] = useState(mesRefAtual());
+  const [listening, setListening] = useState(false);
+  const [processingVoice, setProcessingVoice] = useState(false);
+  const [transcript, setTranscript] = useState("");
+  const [voiceError, setVoiceError] = useState(null);
+  const recognitionRef = useRef(null);
+
+  async function parseVoiceText(texto){
+    setProcessingVoice(true);
+    setVoiceError(null);
+    try{
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 400,
+          messages: [{
+            role: "user",
+            content: "Interprete esta frase em portugues falada por uma empreendedora sobre um lancamento financeiro e retorne APENAS um JSON, sem markdown, sem texto antes ou depois, no formato exato: {\"tipo\": \"receita\" ou \"despesa\", \"natureza\": \"fixa\" ou \"variavel\", \"descricao\": string curta, \"valor\": number, \"categoria\": string curta}. Frase: \"" + texto + "\". Regras: se a frase menciona recebimento, venda, pagamento de cliente = receita. Se menciona gasto, compra, pagamento de conta = despesa. Se nao indicar claramente fixa ou variavel, assuma variavel. Valor deve ser so o numero, sem R$."
+          }]
+        })
+      });
+      const json = await response.json();
+      const textBlock = (json.content || []).find(b=>b.type==="text");
+      let raw = textBlock ? textBlock.text : "{}";
+      raw = raw.replace(/```json|```/g,"").trim();
+      const parsed = JSON.parse(raw);
+      if(parsed.tipo) setTipo(parsed.tipo);
+      if(parsed.natureza) setNatureza(parsed.natureza);
+      if(parsed.descricao) setDescricao(parsed.descricao);
+      if(parsed.valor) setValor(String(parsed.valor));
+      if(parsed.categoria) setCategoria(parsed.categoria);
+    }catch(e){
+      setVoiceError("Não consegui entender o áudio. Preencha manualmente ou tente de novo.");
+    }finally{
+      setProcessingVoice(false);
+    }
+  }
+
+  function toggleVoice(){
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SpeechRecognition){
+      setVoiceError("Comando por voz não é suportado neste navegador. Tente no Chrome.");
+      return;
+    }
+    if(listening && recognitionRef.current){
+      recognitionRef.current.stop();
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = "pt-BR";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onstart = () => { setListening(true); setTranscript(""); setVoiceError(null); };
+    recognition.onresult = (event) => {
+      const texto = event.results[0][0].transcript;
+      setTranscript(texto);
+      parseVoiceText(texto);
+    };
+    recognition.onerror = () => { setVoiceError("Não consegui captar o áudio. Verifique a permissão do microfone."); setListening(false); };
+    recognition.onend = () => setListening(false);
+    recognitionRef.current = recognition;
+    recognition.start();
+  }
+
+  function addLancamento(){
+    if(!descricao || !valor) return;
+    const novo = {
+      id: uid(),
+      tipo, natureza, descricao,
+      valor: parseFloat(valor),
+      categoria: categoria || "geral",
+      mes_referencia: mesRef,
+    };
+    const next = { ...data, lancamentos: [novo, ...data.lancamentos] };
+    updateData(next);
+    setDescricao(""); setValor(""); setCategoria("");
+  }
+  function remover(id){
+    updateData({ ...data, lancamentos: data.lancamentos.filter(l=>l.id!==id) });
+  }
+
+  const ordenados = [...data.lancamentos].sort((a,b)=> b.mes_referencia.localeCompare(a.mes_referencia));
+
+  return (
+    <div>
+      <h1>Lançamentos</h1>
+      <p className="subtitle">Receitas e despesas, fixas ou variáveis — do jeito que você já lança na planilha.</p>
+
+      <div className="card">
+        <h2>Novo lançamento</h2>
+        <div className="voice-bar">
+          <button
+            type="button"
+            className={`btn-mic ${listening ? "listening" : ""}`}
+            onClick={toggleVoice}
+          >
+            <span className="mic-dot"></span>
+            {listening ? "Ouvindo... toque para parar" : processingVoice ? "Interpretando..." : "Adicionar por voz"}
+          </button>
+          {transcript && <span className="voice-transcript">"{transcript}"</span>}
+        </div>
+        {voiceError && <p className="helper" style={{color:"var(--wine)", marginTop:-8, marginBottom:14}}>{voiceError}</p>}
+        <div className="row row-4">
+          <div>
+            <label>Tipo</label>
+            <select value={tipo} onChange={e=>setTipo(e.target.value)}>
+              <option value="receita">Receita</option>
+              <option value="despesa">Despesa</option>
+            </select>
+          </div>
+          <div>
+            <label>Natureza</label>
+            <select value={natureza} onChange={e=>setNatureza(e.target.value)}>
+              <option value="fixa">Fixa</option>
+              <option value="variavel">Variável</option>
+            </select>
+          </div>
+          <div>
+            <label>Categoria</label>
+            <input value={categoria} onChange={e=>setCategoria(e.target.value)} placeholder="ex: serviço, moradia" />
+          </div>
+          <div>
+            <label>Mês de referência</label>
+            <input type="month" value={mesRef} onChange={e=>setMesRef(e.target.value)} />
+          </div>
+        </div>
+        <div className="row row-2">
+          <div>
+            <label>Descrição</label>
+            <input value={descricao} onChange={e=>setDescricao(e.target.value)} placeholder="ex: consultoria cliente X" />
+          </div>
+          <div>
+            <label>Valor (R$)</label>
+            <input type="number" step="0.01" value={valor} onChange={e=>setValor(e.target.value)} placeholder="0,00" />
+          </div>
+        </div>
+        <button className="btn-primary" onClick={addLancamento}>Adicionar lançamento</button>
+      </div>
+
+      <div className="card">
+        <h2>Histórico</h2>
+        {ordenados.length===0 && <div className="empty-state">Nenhum lançamento ainda. Adicione o primeiro acima.</div>}
+        {ordenados.map(l=>(
+          <div className="ledger-row" key={l.id}>
+            <span className={`tag ${l.tipo==="receita"?"tag-receita":"tag-despesa"}`}>{l.tipo}</span>
+            <div>
+              <div style={{fontWeight:500}}>{l.descricao}</div>
+              <div style={{fontSize:12,color:"var(--ink-soft)"}}>
+                {l.categoria} · <span className={`tag ${l.natureza==="fixa"?"tag-fixa":"tag-variavel"}`}>{l.natureza}</span> · {mesLabel(l.mes_referencia)}
+              </div>
+            </div>
+            <span className={`money ${l.tipo==="receita"?"pos":"neg"}`}>{l.tipo==="receita"?"+":"-"}{fmtMoney(l.valor)}</span>
+            <span></span>
+            <button className="btn-danger" onClick={()=>remover(l.id)}>Remover</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Cartao({data, updateData}){
+  const [imageBase64, setImageBase64] = useState(null);
+  const [processing, setProcessing] = useState(false);
+  const [reviewItems, setReviewItems] = useState(null);
+  const [error, setError] = useState(null);
+  const fileRef = useRef(null);
+
+  function handleFile(e){
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result.split(",")[1];
+      setImageBase64({ data: base64, mediaType: file.type });
+      runOcr(base64, file.type);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function runOcr(base64, mediaType){
+    setProcessing(true);
+    setError(null);
+    try{
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 1500,
+          messages: [{
+            role: "user",
+            content: [
+              { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+              { type: "text", text: "Esta é uma fatura de cartão de crédito. Extraia cada linha de compra e retorne APENAS um array JSON, sem markdown, sem texto antes ou depois, no formato: [{\"descricao\": string, \"valor_parcela\": number, \"parcela_atual\": number, \"parcela_total\": number}]. Se a compra não for parcelada, use parcela_atual: 1, parcela_total: 1. Use ponto como separador decimal no valor." }
+            ]
+          }]
+        })
+      });
+      const json = await response.json();
+      const textBlock = (json.content || []).find(b=>b.type==="text");
+      let raw = textBlock ? textBlock.text : "[]";
+      raw = raw.replace(/```json|```/g,"").trim();
+      const parsed = JSON.parse(raw);
+      setReviewItems(parsed.map(item => ({
+        id: uid(),
+        descricao: item.descricao || "",
+        valor_parcela: item.valor_parcela || 0,
+        parcela_atual: item.parcela_atual || 1,
+        parcela_total: item.parcela_total || 1,
+        responsavel: "",
+        categoria: "geral",
+      })));
+    }catch(e){
+      setError("Não consegui ler a fatura. Tente uma foto mais nítida ou lance manualmente.");
+    }finally{
+      setProcessing(false);
+    }
+  }
+
+  function updateItem(id, field, value){
+    setReviewItems(items => items.map(it => it.id===id ? {...it, [field]: value} : it));
+  }
+  function removeItem(id){
+    setReviewItems(items => items.filter(it => it.id!==id));
+  }
+
+  function confirmarImportacao(){
+    const novasCompras = [];
+    const origemBase = uid();
+    reviewItems.forEach(item => {
+      const restantes = Math.max(1, item.parcela_total - item.parcela_atual + 1);
+      for(let i=0; i<restantes; i++){
+        novasCompras.push({
+          id: uid(),
+          compra_origem_id: origemBase + "-" + item.id,
+          descricao: item.descricao,
+          valor_parcela: parseFloat(item.valor_parcela),
+          parcela_atual: item.parcela_atual + i,
+          parcela_total: item.parcela_total,
+          responsavel: item.responsavel || "não informado",
+          categoria: item.categoria,
+          mes_referencia: mesRefAtual(i),
+        });
+      }
+    });
+    updateData({ ...data, comprasCartao: [...novasCompras, ...data.comprasCartao] });
+    setReviewItems(null);
+    setImageBase64(null);
+    if(fileRef.current) fileRef.current.value = "";
+  }
+
+  const comprasOrdenadas = [...data.comprasCartao].sort((a,b)=> b.mes_referencia.localeCompare(a.mes_referencia));
+
+  return (
+    <div>
+      <h1>Cartão de crédito</h1>
+      <p className="subtitle">Suba o print da fatura. O sistema lê as compras, projeta as parcelas futuras e deixa você marcar quem fez cada compra.</p>
+
+      {!reviewItems && (
+        <div className="card">
+          <h2>Importar fatura</h2>
+          <div className="upload-zone" onClick={()=>fileRef.current.click()}>
+            {processing ? <span><span className="loading-dot"></span>Lendo a fatura...</span> : "Clique para enviar o print da fatura (imagem)"}
+          </div>
+          <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleFile} />
+          {error && <p className="helper" style={{color:"var(--wine)"}}>{error}</p>}
+        </div>
+      )}
+
+      {reviewItems && (
+        <div className="card">
+          <h2>Confira antes de importar</h2>
+          <p className="helper" style={{marginBottom:14}}>Ajuste valores se o OCR errar algo e marque quem fez cada compra.</p>
+          <table className="review-table">
+            <thead>
+              <tr><th>Descrição</th><th>Valor parcela</th><th>Parcela</th><th>Total parcelas</th><th>Quem comprou</th><th></th></tr>
+            </thead>
+            <tbody>
+              {reviewItems.map(item=>(
+                <tr key={item.id}>
+                  <td><input value={item.descricao} onChange={e=>updateItem(item.id,"descricao",e.target.value)} /></td>
+                  <td><input type="number" step="0.01" style={{width:90}} value={item.valor_parcela} onChange={e=>updateItem(item.id,"valor_parcela",e.target.value)} /></td>
+                  <td><input type="number" style={{width:60}} value={item.parcela_atual} onChange={e=>updateItem(item.id,"parcela_atual",parseInt(e.target.value)||1)} /></td>
+                  <td><input type="number" style={{width:60}} value={item.parcela_total} onChange={e=>updateItem(item.id,"parcela_total",parseInt(e.target.value)||1)} /></td>
+                  <td><input value={item.responsavel} onChange={e=>updateItem(item.id,"responsavel",e.target.value)} placeholder="ex: Eu, Marido" /></td>
+                  <td><button className="btn-danger" onClick={()=>removeItem(item.id)}>Remover</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{marginTop:18,display:"flex",gap:10}}>
+            <button className="btn-primary" onClick={confirmarImportacao}>Confirmar e projetar parcelas futuras</button>
+            <button className="btn-ghost" onClick={()=>{setReviewItems(null); setImageBase64(null);}}>Cancelar</button>
+          </div>
+        </div>
+      )}
+
+      <div className="card">
+        <h2>Compras registradas</h2>
+        {comprasOrdenadas.length===0 && <div className="empty-state">Nenhuma compra de cartão importada ainda.</div>}
+        {comprasOrdenadas.map(c=>(
+          <div className="ledger-row" key={c.id}>
+            <div className="stamp">{(c.responsavel||"?").slice(0,2).toUpperCase()}</div>
+            <div>
+              <div style={{fontWeight:500}}>{c.descricao}</div>
+              <div style={{fontSize:12,color:"var(--ink-soft)"}}>
+                parcela {c.parcela_atual}/{c.parcela_total} · {c.responsavel} · {mesLabel(c.mes_referencia)}
+              </div>
+            </div>
+            <span className="money neg">-{fmtMoney(c.valor_parcela)}</span>
+            <span></span>
+            <span></span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Dashboard({data}){
+  const mesAtual = mesRefAtual();
+  const lancamentosMes = data.lancamentos.filter(l=>l.mes_referencia===mesAtual);
+  const comprasMes = data.comprasCartao.filter(c=>c.mes_referencia===mesAtual);
+
+  const receitas = lancamentosMes.filter(l=>l.tipo==="receita").reduce((s,l)=>s+l.valor,0);
+  const despesasDiretas = lancamentosMes.filter(l=>l.tipo==="despesa").reduce((s,l)=>s+l.valor,0);
+  const despesaCartao = comprasMes.reduce((s,c)=>s+c.valor_parcela,0);
+  const despesasTotal = despesasDiretas + despesaCartao;
+  const saldo = receitas - despesasTotal;
+
+  const porPessoa = {};
+  comprasMes.forEach(c=>{
+    porPessoa[c.responsavel] = (porPessoa[c.responsavel]||0) + c.valor_parcela;
+  });
+  const maxPessoa = Math.max(1, ...Object.values(porPessoa));
+
+  // projeção próximos 3 meses (cartão)
+  const proximosMeses = [1,2,3].map(offset=>{
+    const ref = mesRefAtual(offset);
+    const total = data.comprasCartao.filter(c=>c.mes_referencia===ref).reduce((s,c)=>s+c.valor_parcela,0);
+    return { ref, total };
+  });
+
+  return (
+    <div>
+      <h1>Dashboard — {mesLabel(mesAtual)}</h1>
+      <p className="subtitle">Visão consolidada: lançamentos diretos + cartão de crédito, tudo no mesmo lugar.</p>
+
+      <div className="metric-grid">
+        <div className="metric">
+          <div className="metric-label">Receitas do mês</div>
+          <div className="metric-value" style={{color:"#3B6D11"}}>{fmtMoney(receitas)}</div>
+        </div>
+        <div className="metric">
+          <div className="metric-label">Despesas do mês (direta + cartão)</div>
+          <div className="metric-value" style={{color:"var(--wine)"}}>{fmtMoney(despesasTotal)}</div>
+        </div>
+        <div className="metric">
+          <div className="metric-label">Saldo</div>
+          <div className={`metric-value underline-double`} style={{color: saldo>=0 ? "#3B6D11" : "var(--wine)"}}>{fmtMoney(saldo)}</div>
+        </div>
+      </div>
+
+      <div className="card">
+        <h2>Gasto no cartão por pessoa — {mesLabel(mesAtual)}</h2>
+        {Object.keys(porPessoa).length===0 && <div className="empty-state">Nenhuma compra de cartão neste mês.</div>}
+        {Object.entries(porPessoa).sort((a,b)=>b[1]-a[1]).map(([pessoa,valor])=>(
+          <div className="person-bar-row" key={pessoa}>
+            <span>{pessoa}</span>
+            <div className="person-bar-track">
+              <div className="person-bar-fill" style={{width:`${(valor/maxPessoa)*100}%`}}></div>
+            </div>
+            <span className="money neg" style={{textAlign:"right"}}>{fmtMoney(valor)}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="card">
+        <h2>Previsão de despesa do cartão — próximos meses</h2>
+        <p className="helper" style={{marginBottom:14}}>Gerada automaticamente a partir das parcelas futuras já lançadas.</p>
+        {proximosMeses.map(m=>(
+          <div className="ledger-row" key={m.ref} style={{gridTemplateColumns:"1fr auto"}}>
+            <span>{mesLabel(m.ref)}</span>
+            <span className="money neg">{fmtMoney(m.total)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
