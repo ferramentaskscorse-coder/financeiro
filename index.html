@@ -394,6 +394,7 @@ function Lancamentos({data, updateData}){
   const [processingVoice, setProcessingVoice] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [voiceError, setVoiceError] = useState(null);
+  const [voiceFilled, setVoiceFilled] = useState(false);
   const recognitionRef = useRef(null);
 
   async function parseVoiceText(texto){
@@ -413,17 +414,24 @@ function Lancamentos({data, updateData}){
         })
       });
       const json = await response.json();
+      if(json.error){
+        throw new Error(json.error.message || "Erro na API");
+      }
       const textBlock = (json.content || []).find(b=>b.type==="text");
       let raw = textBlock ? textBlock.text : "{}";
       raw = raw.replace(/```json|```/g,"").trim();
-      const parsed = JSON.parse(raw);
+      const match = raw.match(/\{[\s\S]*\}/);
+      if(!match) throw new Error("Resposta sem JSON reconhecível: " + raw);
+      const parsed = JSON.parse(match[0]);
       if(parsed.tipo) setTipo(parsed.tipo);
       if(parsed.natureza) setNatureza(parsed.natureza);
       if(parsed.descricao) setDescricao(parsed.descricao);
       if(parsed.valor) setValor(String(parsed.valor));
       if(parsed.categoria) setCategoria(parsed.categoria);
+      setVoiceFilled(true);
     }catch(e){
-      setVoiceError("Não consegui entender o áudio. Preencha manualmente ou tente de novo.");
+      console.error("Erro ao interpretar voz:", e);
+      setVoiceError("Não consegui interpretar o áudio automaticamente. Confira e preencha os campos abaixo manualmente antes de adicionar.");
     }finally{
       setProcessingVoice(false);
     }
@@ -443,7 +451,7 @@ function Lancamentos({data, updateData}){
     recognition.lang = "pt-BR";
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
-    recognition.onstart = () => { setListening(true); setTranscript(""); setVoiceError(null); };
+    recognition.onstart = () => { setListening(true); setTranscript(""); setVoiceError(null); setVoiceFilled(false); };
     recognition.onresult = (event) => {
       const texto = event.results[0][0].transcript;
       setTranscript(texto);
@@ -466,7 +474,7 @@ function Lancamentos({data, updateData}){
     };
     const next = { ...data, lancamentos: [novo, ...data.lancamentos] };
     updateData(next);
-    setDescricao(""); setValor(""); setCategoria("");
+    setDescricao(""); setValor(""); setCategoria(""); setVoiceFilled(false); setTranscript("");
   }
   function remover(id){
     updateData({ ...data, lancamentos: data.lancamentos.filter(l=>l.id!==id) });
@@ -493,6 +501,11 @@ function Lancamentos({data, updateData}){
           {transcript && <span className="voice-transcript">"{transcript}"</span>}
         </div>
         {voiceError && <p className="helper" style={{color:"var(--wine)", marginTop:-8, marginBottom:14}}>{voiceError}</p>}
+        {voiceFilled && (
+          <div style={{background:"var(--gold-soft)", border:"1px solid var(--gold)", borderRadius:8, padding:"8px 12px", fontSize:13, color:"#6b5216", marginBottom:14}}>
+            Preenchi os campos abaixo com base no que você falou. Confira tipo, valor e descrição antes de clicar em "Adicionar lançamento".
+          </div>
+        )}
         <div className="row row-4">
           <div>
             <label>Tipo</label>
