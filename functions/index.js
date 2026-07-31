@@ -35,7 +35,7 @@ function extrairJson(claudeResponse) {
   return JSON.parse(match[0]);
 }
 
-// Endpoint 1: recebe o print da fatura, devolve as compras já extraídas
+// Endpoint 1: recebe o print ou PDF da fatura, devolve as compras já extraídas
 exports.parseFatura = onRequest(
   { secrets: [ANTHROPIC_API_KEY], cors: true, region: REGION },
   async (req, res) => {
@@ -48,18 +48,23 @@ exports.parseFatura = onRequest(
         return res.status(400).json({ error: "imageBase64 e mediaType são obrigatórios" });
       }
 
+      const isPdf = mediaType === "application/pdf";
+      const conteudoArquivo = isPdf
+        ? { type: "document", source: { type: "base64", media_type: mediaType, data: imageBase64 } }
+        : { type: "image", source: { type: "base64", media_type: mediaType, data: imageBase64 } };
+
       const claudeResponse = await callClaude(ANTHROPIC_API_KEY.value(), {
         model: "claude-sonnet-4-6",
-        max_tokens: 1500,
+        max_tokens: 2000,
         messages: [
           {
             role: "user",
             content: [
-              { type: "image", source: { type: "base64", media_type: mediaType, data: imageBase64 } },
+              conteudoArquivo,
               {
                 type: "text",
                 text:
-                  'Esta é uma fatura de cartão de crédito. Extraia cada linha de compra e retorne APENAS um array JSON, sem markdown, sem texto antes ou depois, no formato: [{"descricao": string, "valor_parcela": number, "parcela_atual": number, "parcela_total": number}]. Se a compra não for parcelada, use parcela_atual: 1, parcela_total: 1. Use ponto como separador decimal no valor.',
+                  'Esta é uma fatura de cartão de crédito. Extraia cada linha de compra e retorne APENAS um array JSON, sem markdown, sem texto antes ou depois, no formato: [{"descricao": string, "valor_parcela": number, "parcela_atual": number, "parcela_total": number}]. Se a compra não for parcelada, use parcela_atual: 1, parcela_total: 1. Use ponto como separador decimal no valor. Se a fatura tiver várias páginas, extraia as compras de todas elas.',
               },
             ],
           },

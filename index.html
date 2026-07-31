@@ -655,15 +655,15 @@ function Cartao({data, updateData}){
   return (
     <div>
       <h1>Cartão de crédito</h1>
-      <p className="subtitle">Suba o print da fatura. O sistema lê as compras, projeta as parcelas futuras e deixa você marcar quem fez cada compra.</p>
+      <p className="subtitle">Suba o print ou o PDF da fatura. O sistema lê as compras, projeta as parcelas futuras e deixa você marcar quem fez cada compra.</p>
 
       {!reviewItems && (
         <div className="card">
           <h2>Importar fatura</h2>
           <div className="upload-zone" onClick={()=>fileRef.current.click()}>
-            {processing ? <span><span className="loading-dot"></span>Lendo a fatura...</span> : "Clique para enviar o print da fatura (imagem)"}
+            {processing ? <span><span className="loading-dot"></span>Lendo a fatura...</span> : "Clique para enviar o print ou o PDF da fatura"}
           </div>
-          <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleFile} />
+          <input ref={fileRef} type="file" accept="image/*,application/pdf" style={{display:"none"}} onChange={handleFile} />
           {error && <p className="helper" style={{color:"var(--wine)"}}>{error}</p>}
         </div>
       )}
