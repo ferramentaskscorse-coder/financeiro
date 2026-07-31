@@ -720,6 +720,7 @@ function Cartao({data, updateData}){
 
 function Dashboard({data}){
   const mesAtual = mesRefAtual();
+  const [mesDetalhe, setMesDetalhe] = useState(null);
   const lancamentosMes = data.lancamentos.filter(l=>l.mes_referencia===mesAtual);
   const comprasMes = data.comprasCartao.filter(c=>c.mes_referencia===mesAtual);
 
@@ -778,13 +779,48 @@ function Dashboard({data}){
 
       <div className="card">
         <h2>Previsão de despesa do cartão — próximos meses</h2>
-        <p className="helper" style={{marginBottom:14}}>Gerada automaticamente a partir das parcelas futuras já lançadas.</p>
+        <p className="helper" style={{marginBottom:14}}>Gerada automaticamente a partir das parcelas futuras já lançadas. Clique num mês pra ver o detalhe.</p>
         {proximosMeses.map(m=>(
-          <div className="ledger-row" key={m.ref} style={{gridTemplateColumns:"1fr auto"}}>
-            <span>{mesLabel(m.ref)}</span>
+          <div
+            className="ledger-row"
+            key={m.ref}
+            style={{gridTemplateColumns:"1fr auto", cursor:"pointer", background: mesDetalhe===m.ref ? "var(--paper)" : "transparent"}}
+            onClick={()=>setMesDetalhe(mesDetalhe===m.ref ? null : m.ref)}
+          >
+            <span style={{fontWeight: mesDetalhe===m.ref ? 600 : 400}}>
+              {mesLabel(m.ref)} {mesDetalhe===m.ref ? "▾" : "▸"}
+            </span>
             <span className="money neg">{fmtMoney(m.total)}</span>
           </div>
         ))}
+
+        {mesDetalhe && (() => {
+          const comprasDoMes = data.comprasCartao
+            .filter(c => c.mes_referencia === mesDetalhe)
+            .sort((a,b) => b.valor_parcela - a.valor_parcela);
+          return (
+            <div style={{marginTop:14, paddingTop:14, borderTop:"1px solid var(--paper-line)"}}>
+              <p className="helper" style={{marginTop:0, marginBottom:10}}>
+                Compras previstas para {mesLabel(mesDetalhe)}:
+              </p>
+              {comprasDoMes.length===0 && <div className="empty-state">Nenhuma compra prevista para esse mês.</div>}
+              {comprasDoMes.map(c=>(
+                <div className="ledger-row" key={c.id}>
+                  <div className="stamp">{(c.responsavel||"?").slice(0,2).toUpperCase()}</div>
+                  <div>
+                    <div style={{fontWeight:500}}>{c.descricao}</div>
+                    <div style={{fontSize:12,color:"var(--ink-soft)"}}>
+                      parcela {c.parcela_atual}/{c.parcela_total} · {c.responsavel}
+                    </div>
+                  </div>
+                  <span className="money neg">{fmtMoney(c.valor_parcela)}</span>
+                  <span></span>
+                  <span></span>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
