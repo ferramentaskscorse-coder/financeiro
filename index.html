@@ -311,17 +311,40 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useRef } = React;
 
-const STORAGE_KEY = "financeiro-data";
 const MESES = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
 
 // COLE AQUI as URLs que aparecem no terminal depois do "firebase deploy --only functions"
 // Elas vão ter o formato: https://southamerica-east1-SEU-PROJETO.cloudfunctions.net/parseFatura
 const URL_PARSE_FATURA = "https://southamerica-east1-finance-c20f5.cloudfunctions.net/parseFatura";
 const URL_PARSE_VOZ = "https://southamerica-east1-finance-c20f5.cloudfunctions.net/parseVoz";
+
+// COLE AQUI a configuração do app Web do Firebase
+// (Project Settings → General → Your apps → SDK setup and configuration)
+const firebaseConfig = {
+  apiKey: "AIzaSyCozKpmHXcvxFNS5ZZJLgae0B4rTRs6Qo0",
+  authDomain: "finance-c20f5.firebaseapp.com",
+  projectId: "finance-c20f5",
+  storageBucket: "finance-c20f5.firebasestorage.app",
+  messagingSenderId: "901993488747",
+  appId: "1:901993488747:web:6b314343559ea5e3ae6c2e",
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const auth = firebase.auth();
+
+async function garantirLogin(){
+  if(!auth.currentUser){
+    await auth.signInAnonymously();
+  }
+}
 
 function mesRefAtual(offset=0){
   const d = new Date();
@@ -396,37 +419,60 @@ function categorizarAutomatico(descricao, regras){
 
 async function loadData(){
   try{
-    const res = await window.storage.get(STORAGE_KEY);
-    if(res && res.value){
-      const parsed = JSON.parse(res.value);
+    await garantirLogin();
+    const doc = await db.collection("financeiro").doc("dados").get();
+    if(doc.exists){
+      const parsed = doc.data();
       return { lancamentos: [], comprasCartao: [], categoriaRegras: [], ...parsed };
     }
-  }catch(e){}
+  }catch(e){
+    console.error("Erro ao carregar dados do Firestore:", e);
+    throw e;
+  }
   return { lancamentos: [], comprasCartao: [], categoriaRegras: [] };
 }
 async function saveData(data){
-  try{
-    await window.storage.set(STORAGE_KEY, JSON.stringify(data));
-  }catch(e){ console.error("Erro ao salvar:", e); }
+  await garantirLogin();
+  await db.collection("financeiro").doc("dados").set(data);
 }
 
 function App(){
   const [view, setView] = useState("lancamentos");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [erroCarregamento, setErroCarregamento] = useState(null);
+  const [erroSalvamento, setErroSalvamento] = useState(null);
 
   useEffect(()=>{
-    loadData().then(d=>{ setData(d); setLoading(false); });
+    loadData()
+      .then(d=>{ setData(d); setLoading(false); })
+      .catch(e=>{
+        console.error("Falha ao carregar dados:", e);
+        setErroCarregamento("Não consegui conectar ao banco de dados. Verifique a configuração do Firebase no topo do código, ou tente recarregar a página.");
+        setLoading(false);
+      });
   },[]);
 
   async function updateData(next){
     setData(next);
-    await saveData(next);
+    setErroSalvamento(null);
+    try{
+      await saveData(next);
+    }catch(e){
+      console.error("Falha ao salvar dados:", e);
+      setErroSalvamento("Não consegui salvar essa alteração. Verifique sua internet e tente de novo — se persistir, os dados podem não estar sendo guardados.");
+    }
   }
 
   if(loading){
     return <div style={{padding:"40px",color:"#8a7a68",fontFamily:"'Work Sans',sans-serif"}}>
       <span className="loading-dot"></span>Carregando...
+    </div>;
+  }
+
+  if(erroCarregamento){
+    return <div style={{padding:"40px",color:"var(--wine)",fontFamily:"'Work Sans',sans-serif",maxWidth:500}}>
+      {erroCarregamento}
     </div>;
   }
 
@@ -441,6 +487,11 @@ function App(){
         <div className={`nav-item ${view==="dashboard"?"active":""}`} onClick={()=>setView("dashboard")}>Dashboard</div>
       </div>
       <div className="main">
+        {erroSalvamento && (
+          <div style={{background:"var(--wine-soft)", border:"1px solid var(--wine)", color:"var(--wine)", borderRadius:8, padding:"10px 14px", fontSize:13, marginBottom:16}}>
+            {erroSalvamento}
+          </div>
+        )}
         {view==="lancamentos" && <Lancamentos data={data} updateData={updateData} />}
         {view==="cartao" && <Cartao data={data} updateData={updateData} />}
         {view==="categorias" && <Categorias data={data} updateData={updateData} />}
@@ -908,89 +959,90 @@ function Dashboard({data}){
         </div>
       </div>
 
-      <div className="card">
-        <h2>Gasto por categoria — {mesLabel(mesAtual)}</h2>
-        {dadosCategoria.length===0 && <div className="empty-state">Nenhuma despesa neste mês ainda.</div>}
-        {dadosCategoria.length>0 && (
-          <div style={{display:"flex", gap:28, alignItems:"center", flexWrap:"wrap"}}>
-            <DonutChart data={dadosCategoria} />
-            <div style={{flex:1, minWidth:200}}>
-              {dadosCategoria.map(d=>(
-                <div className="person-bar-row" key={d.label} style={{gridTemplateColumns:"18px 1fr auto"}}>
-                  <span style={{width:12,height:12,borderRadius:3,background:d.color,display:"inline-block"}}></span>
-                  <span>{d.label}</span>
-                  <span className="money neg" style={{textAlign:"right"}}>{fmtMoney(d.value)}</span>
-                </div>
-              ))}
+      <div style={{display:"flex", gap:20, flexWrap:"wrap"}}>
+        <div className="card" style={{flex:1, minWidth:280}}>
+          <h2>Gasto por categoria — {mesLabel(mesAtual)}</h2>
+          {dadosCategoria.length===0 && <div className="empty-state">Nenhuma despesa neste mês ainda.</div>}
+          {dadosCategoria.length>0 && (
+            <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:14}}>
+              <DonutChart data={dadosCategoria} />
+              <div style={{display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center"}}>
+                {dadosCategoria.map(d=>(
+                  <span key={d.label} style={{display:"flex",alignItems:"center",gap:6,fontSize:13}}>
+                    <span style={{width:10,height:10,borderRadius:3,background:d.color,display:"inline-block"}}></span>
+                    {d.label}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
 
-      <div className="card">
-        <h2>Gasto no cartão por pessoa — {mesLabel(mesAtual)}</h2>
-        {dadosPessoa.length===0 && <div className="empty-state">Nenhuma compra de cartão neste mês.</div>}
-        {dadosPessoa.length>0 && (
-          <div style={{display:"flex", gap:28, alignItems:"center", flexWrap:"wrap"}}>
-            <DonutChart data={dadosPessoa} />
-            <div style={{flex:1, minWidth:200}}>
-              {dadosPessoa.map(d=>(
-                <div className="person-bar-row" key={d.label} style={{gridTemplateColumns:"18px 1fr auto"}}>
-                  <span style={{width:12,height:12,borderRadius:3,background:d.color,display:"inline-block"}}></span>
-                  <span>{d.label}</span>
-                  <span className="money neg" style={{textAlign:"right"}}>{fmtMoney(d.value)}</span>
-                </div>
-              ))}
+        <div className="card" style={{flex:1, minWidth:280}}>
+          <h2>Gasto no cartão por pessoa — {mesLabel(mesAtual)}</h2>
+          {dadosPessoa.length===0 && <div className="empty-state">Nenhuma compra de cartão neste mês.</div>}
+          {dadosPessoa.length>0 && (
+            <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:14}}>
+              <DonutChart data={dadosPessoa} />
+              <div style={{display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center"}}>
+                {dadosPessoa.map(d=>(
+                  <span key={d.label} style={{display:"flex",alignItems:"center",gap:6,fontSize:13}}>
+                    <span style={{width:10,height:10,borderRadius:3,background:d.color,display:"inline-block"}}></span>
+                    {d.label}
+                  </span>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="card">
         <h2>Previsão de despesa do cartão — próximos meses</h2>
         <p className="helper" style={{marginBottom:14}}>Gerada automaticamente a partir das parcelas futuras já lançadas. Clique num mês pra ver o detalhe.</p>
         {proximosMeses.length===0 && <div className="empty-state">Nenhuma despesa futura de cartão prevista nos próximos meses.</div>}
-        {proximosMeses.map(m=>(
-          <div
-            className="ledger-row"
-            key={m.ref}
-            style={{gridTemplateColumns:"1fr auto", cursor:"pointer", background: mesDetalhe===m.ref ? "var(--paper)" : "transparent"}}
-            onClick={()=>setMesDetalhe(mesDetalhe===m.ref ? null : m.ref)}
-          >
-            <span style={{fontWeight: mesDetalhe===m.ref ? 600 : 400}}>
-              {mesLabel(m.ref)} {mesDetalhe===m.ref ? "▾" : "▸"}
-            </span>
-            <span className="money neg">{fmtMoney(m.total)}</span>
-          </div>
-        ))}
-
-        {mesDetalhe && (() => {
-          const comprasDoMes = data.comprasCartao
-            .filter(c => c.mes_referencia === mesDetalhe)
-            .sort((a,b) => b.valor_parcela - a.valor_parcela);
+        {proximosMeses.map(m=>{
+          const aberto = mesDetalhe === m.ref;
+          const comprasDoMes = aberto
+            ? data.comprasCartao.filter(c => c.mes_referencia === m.ref).sort((a,b) => b.valor_parcela - a.valor_parcela)
+            : [];
           return (
-            <div style={{marginTop:14, paddingTop:14, borderTop:"1px solid var(--paper-line)"}}>
-              <p className="helper" style={{marginTop:0, marginBottom:10}}>
-                Compras previstas para {mesLabel(mesDetalhe)}:
-              </p>
-              {comprasDoMes.length===0 && <div className="empty-state">Nenhuma compra prevista para esse mês.</div>}
-              {comprasDoMes.map(c=>(
-                <div className="ledger-row" key={c.id}>
-                  <div className="stamp">{(c.responsavel||"?").slice(0,2).toUpperCase()}</div>
-                  <div>
-                    <div style={{fontWeight:500}}>{c.descricao}</div>
-                    <div style={{fontSize:12,color:"var(--ink-soft)"}}>
-                      parcela {c.parcela_atual}/{c.parcela_total} · {c.responsavel}
+            <React.Fragment key={m.ref}>
+              <div
+                className="ledger-row"
+                style={{gridTemplateColumns:"1fr auto", cursor:"pointer", background: aberto ? "var(--paper)" : "transparent"}}
+                onClick={()=>setMesDetalhe(aberto ? null : m.ref)}
+              >
+                <span style={{fontWeight: aberto ? 600 : 400}}>
+                  {mesLabel(m.ref)} {aberto ? "▾" : "▸"}
+                </span>
+                <span className="money neg">{fmtMoney(m.total)}</span>
+              </div>
+              {aberto && (
+                <div style={{marginBottom:14, paddingBottom:14, borderBottom:"1px dashed var(--paper-line)", background:"var(--paper)", padding:"10px 14px", borderRadius:8}}>
+                  <p className="helper" style={{marginTop:0, marginBottom:8}}>
+                    Compras previstas para {mesLabel(m.ref)}:
+                  </p>
+                  {comprasDoMes.length===0 && <div className="empty-state">Nenhuma compra prevista para esse mês.</div>}
+                  {comprasDoMes.map(c=>(
+                    <div className="ledger-row" key={c.id}>
+                      <div className="stamp">{(c.responsavel||"?").slice(0,2).toUpperCase()}</div>
+                      <div>
+                        <div style={{fontWeight:500}}>{c.descricao}</div>
+                        <div style={{fontSize:12,color:"var(--ink-soft)"}}>
+                          parcela {c.parcela_atual}/{c.parcela_total} · {c.responsavel}
+                        </div>
+                      </div>
+                      <span className="money neg">{fmtMoney(c.valor_parcela)}</span>
+                      <span></span>
+                      <span></span>
                     </div>
-                  </div>
-                  <span className="money neg">{fmtMoney(c.valor_parcela)}</span>
-                  <span></span>
-                  <span></span>
+                  ))}
                 </div>
-              ))}
-            </div>
+              )}
+            </React.Fragment>
           );
-        })()}
+        })}
       </div>
     </div>
   );
