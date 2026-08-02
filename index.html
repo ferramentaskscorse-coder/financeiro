@@ -325,6 +325,7 @@ const URL_PARSE_VOZ = "https://southamerica-east1-finance-c20f5.cloudfunctions.n
 
 function mesRefAtual(offset=0){
   const d = new Date();
+  d.setDate(1); // evita bug: dia 31 + mês sem dia 31 faz o JS pular um mês inteiro
   d.setMonth(d.getMonth()+offset);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
 }
@@ -337,12 +338,71 @@ function fmtMoney(v){
 }
 function uid(){ return Math.random().toString(36).slice(2,10); }
 
+const PALETA_CORES = ["#BE4D00","#C9A84C","#7A2E1D","#4f2c1d","#8a7350","#a86a3d"];
+
+// Gráfico de rosca em SVG puro (sem dependência externa), recebe [{label, value}]
+function DonutChart({data, size=150}){
+  const total = data.reduce((s,d)=>s+d.value,0);
+  const radius = 52;
+  const stroke = 22;
+  const circumference = 2 * Math.PI * radius;
+  let acumulado = 0;
+
+  return (
+    <svg viewBox="0 0 150 150" width={size} height={size}>
+      <g transform="translate(75,75) rotate(-90)">
+        {total === 0 && (
+          <circle r={radius} fill="none" stroke="var(--paper-line)" strokeWidth={stroke} />
+        )}
+        {total > 0 && data.map((d, i) => {
+          const fracao = d.value / total;
+          const dash = fracao * circumference;
+          const offset = -acumulado * circumference;
+          acumulado += fracao;
+          return (
+            <circle
+              key={i}
+              r={radius}
+              fill="none"
+              stroke={d.color || PALETA_CORES[i % PALETA_CORES.length]}
+              strokeWidth={stroke}
+              strokeDasharray={`${dash} ${circumference - dash}`}
+              strokeDashoffset={offset}
+            />
+          );
+        })}
+      </g>
+      <text x="75" y="70" textAnchor="middle" fontFamily="'IBM Plex Mono',monospace" fontSize="15" fontWeight="500" fill="var(--brown-700)">
+        {fmtMoney(total)}
+      </text>
+      <text x="75" y="88" textAnchor="middle" fontFamily="'Work Sans',sans-serif" fontSize="10" fill="var(--ink-soft)">
+        total
+      </text>
+    </svg>
+  );
+}
+
+
+
+// Aplica as regras de categoria automática: procura a primeira regra cuja palavra-chave
+// aparece na descrição (sem diferenciar maiúsculas/minúsculas/acentos) e devolve a categoria.
+function categorizarAutomatico(descricao, regras){
+  if(!descricao || !regras || regras.length===0) return null;
+  const normalizar = (s) => (s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+  const descNorm = normalizar(descricao);
+  const regra = regras.find(r => descNorm.includes(normalizar(r.palavraChave)));
+  return regra ? regra.categoria : null;
+}
+
 async function loadData(){
   try{
     const res = await window.storage.get(STORAGE_KEY);
-    if(res && res.value) return JSON.parse(res.value);
+    if(res && res.value){
+      const parsed = JSON.parse(res.value);
+      return { lancamentos: [], comprasCartao: [], categoriaRegras: [], ...parsed };
+    }
   }catch(e){}
-  return { lancamentos: [], comprasCartao: [] };
+  return { lancamentos: [], comprasCartao: [], categoriaRegras: [] };
 }
 async function saveData(data){
   try{
@@ -377,12 +437,68 @@ function App(){
         <p className="brand-sub">controle financeiro</p>
         <div className={`nav-item ${view==="lancamentos"?"active":""}`} onClick={()=>setView("lancamentos")}>Lançamentos</div>
         <div className={`nav-item ${view==="cartao"?"active":""}`} onClick={()=>setView("cartao")}>Cartão de crédito</div>
+        <div className={`nav-item ${view==="categorias"?"active":""}`} onClick={()=>setView("categorias")}>Categorias</div>
         <div className={`nav-item ${view==="dashboard"?"active":""}`} onClick={()=>setView("dashboard")}>Dashboard</div>
       </div>
       <div className="main">
         {view==="lancamentos" && <Lancamentos data={data} updateData={updateData} />}
         {view==="cartao" && <Cartao data={data} updateData={updateData} />}
+        {view==="categorias" && <Categorias data={data} updateData={updateData} />}
         {view==="dashboard" && <Dashboard data={data} />}
+      </div>
+    </div>
+  );
+}
+
+function Categorias({data, updateData}){
+  const [palavraChave, setPalavraChave] = useState("");
+  const [categoria, setCategoria] = useState("");
+
+  function addRegra(){
+    if(!palavraChave || !categoria) return;
+    const nova = { id: uid(), palavraChave: palavraChave.trim(), categoria: categoria.trim() };
+    updateData({ ...data, categoriaRegras: [...(data.categoriaRegras||[]), nova] });
+    setPalavraChave(""); setCategoria("");
+  }
+  function remover(id){
+    updateData({ ...data, categoriaRegras: (data.categoriaRegras||[]).filter(r=>r.id!==id) });
+  }
+
+  const regras = data.categoriaRegras || [];
+
+  return (
+    <div>
+      <h1>Categorias automáticas</h1>
+      <p className="subtitle">Configure palavras-chave: sempre que aparecerem na descrição de um lançamento (manual, por voz ou de fatura), a categoria é preenchida sozinha.</p>
+
+      <div className="card">
+        <h2>Nova regra</h2>
+        <div className="row row-3">
+          <div>
+            <label>Palavra-chave (aparece na descrição)</label>
+            <input value={palavraChave} onChange={e=>setPalavraChave(e.target.value)} placeholder="ex: uber, 99, ifood" />
+          </div>
+          <div>
+            <label>Categoria a aplicar</label>
+            <input value={categoria} onChange={e=>setCategoria(e.target.value)} placeholder="ex: Transporte" />
+          </div>
+          <div style={{display:"flex", alignItems:"flex-end"}}>
+            <button className="btn-primary" onClick={addRegra} style={{width:"100%"}}>Adicionar regra</button>
+          </div>
+        </div>
+        <p className="helper">Não diferencia maiúsculas/minúsculas nem acentos. A primeira regra que combinar com a descrição é usada.</p>
+      </div>
+
+      <div className="card">
+        <h2>Regras cadastradas</h2>
+        {regras.length===0 && <div className="empty-state">Nenhuma regra ainda. Cadastre a primeira acima — ex: "uber" → "Transporte".</div>}
+        {regras.map(r=>(
+          <div className="ledger-row" key={r.id} style={{gridTemplateColumns:"auto 1fr auto"}}>
+            <span className="tag tag-variavel">se contém "{r.palavraChave}"</span>
+            <span style={{fontWeight:500}}>→ {r.categoria}</span>
+            <button className="btn-danger" onClick={()=>remover(r.id)}>Remover</button>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -425,7 +541,9 @@ function Lancamentos({data, updateData}){
       if(parsed.natureza) setNatureza(parsed.natureza);
       if(parsed.descricao) setDescricao(parsed.descricao);
       if(parsed.valor) setValor(String(parsed.valor));
-      if(parsed.categoria) setCategoria(parsed.categoria);
+      const regraCategoria = categorizarAutomatico(parsed.descricao, data.categoriaRegras);
+      if(regraCategoria) setCategoria(regraCategoria);
+      else if(parsed.categoria) setCategoria(parsed.categoria);
       setVoiceFilled(true);
     }catch(e){
       console.error("Erro ao interpretar voz:", e);
@@ -467,7 +585,7 @@ function Lancamentos({data, updateData}){
       id: uid(),
       tipo, natureza, descricao,
       valor: parseFloat(valor),
-      categoria: categoria || "geral",
+      categoria: categoria || "Outros",
       mes_referencia: mesRef,
     };
     const next = { ...data, lancamentos: [novo, ...data.lancamentos] };
@@ -531,7 +649,17 @@ function Lancamentos({data, updateData}){
         <div className="row row-2">
           <div>
             <label>Descrição</label>
-            <input value={descricao} onChange={e=>setDescricao(e.target.value)} placeholder="ex: consultoria cliente X" />
+            <input
+              value={descricao}
+              onChange={e=>setDescricao(e.target.value)}
+              onBlur={()=>{
+                if(!categoria){
+                  const regraCategoria = categorizarAutomatico(descricao, data.categoriaRegras);
+                  if(regraCategoria) setCategoria(regraCategoria);
+                }
+              }}
+              placeholder="ex: consultoria cliente X, uber, ifood"
+            />
           </div>
           <div>
             <label>Valor (R$)</label>
@@ -608,7 +736,7 @@ function Cartao({data, updateData}){
         parcela_atual: item.parcela_atual || 1,
         parcela_total: item.parcela_total || 1,
         responsavel: "",
-        categoria: "geral",
+        categoria: categorizarAutomatico(item.descricao, data.categoriaRegras) || "Outros",
       })));
     }catch(e){
       console.error("Erro ao ler fatura:", e);
@@ -730,18 +858,35 @@ function Dashboard({data}){
   const despesasTotal = despesasDiretas + despesaCartao;
   const saldo = receitas - despesasTotal;
 
+  // Gasto por pessoa (cartão)
   const porPessoa = {};
   comprasMes.forEach(c=>{
     porPessoa[c.responsavel] = (porPessoa[c.responsavel]||0) + c.valor_parcela;
   });
-  const maxPessoa = Math.max(1, ...Object.values(porPessoa));
+  const dadosPessoa = Object.entries(porPessoa)
+    .sort((a,b)=>b[1]-a[1])
+    .map(([label,value],i)=>({ label, value, color: PALETA_CORES[i % PALETA_CORES.length] }));
 
-  // projeção próximos 3 meses (cartão)
-  const proximosMeses = [1,2,3].map(offset=>{
-    const ref = mesRefAtual(offset);
-    const total = data.comprasCartao.filter(c=>c.mes_referencia===ref).reduce((s,c)=>s+c.valor_parcela,0);
-    return { ref, total };
+  // Gasto por categoria (despesas diretas + cartão, mês atual)
+  const porCategoria = {};
+  lancamentosMes.filter(l=>l.tipo==="despesa").forEach(l=>{
+    porCategoria[l.categoria||"Outros"] = (porCategoria[l.categoria||"Outros"]||0) + l.valor;
   });
+  comprasMes.forEach(c=>{
+    porCategoria[c.categoria||"Outros"] = (porCategoria[c.categoria||"Outros"]||0) + c.valor_parcela;
+  });
+  const dadosCategoria = Object.entries(porCategoria)
+    .sort((a,b)=>b[1]-a[1])
+    .map(([label,value],i)=>({ label, value, color: PALETA_CORES[i % PALETA_CORES.length] }));
+
+  // Previsão de despesa do cartão — olha os próximos 6 meses, só mostra os que têm valor
+  const proximosMeses = [1,2,3,4,5,6]
+    .map(offset=>{
+      const ref = mesRefAtual(offset);
+      const total = data.comprasCartao.filter(c=>c.mes_referencia===ref).reduce((s,c)=>s+c.valor_parcela,0);
+      return { ref, total };
+    })
+    .filter(m => m.total > 0);
 
   return (
     <div>
@@ -764,22 +909,47 @@ function Dashboard({data}){
       </div>
 
       <div className="card">
-        <h2>Gasto no cartão por pessoa — {mesLabel(mesAtual)}</h2>
-        {Object.keys(porPessoa).length===0 && <div className="empty-state">Nenhuma compra de cartão neste mês.</div>}
-        {Object.entries(porPessoa).sort((a,b)=>b[1]-a[1]).map(([pessoa,valor])=>(
-          <div className="person-bar-row" key={pessoa}>
-            <span>{pessoa}</span>
-            <div className="person-bar-track">
-              <div className="person-bar-fill" style={{width:`${(valor/maxPessoa)*100}%`}}></div>
+        <h2>Gasto por categoria — {mesLabel(mesAtual)}</h2>
+        {dadosCategoria.length===0 && <div className="empty-state">Nenhuma despesa neste mês ainda.</div>}
+        {dadosCategoria.length>0 && (
+          <div style={{display:"flex", gap:28, alignItems:"center", flexWrap:"wrap"}}>
+            <DonutChart data={dadosCategoria} />
+            <div style={{flex:1, minWidth:200}}>
+              {dadosCategoria.map(d=>(
+                <div className="person-bar-row" key={d.label} style={{gridTemplateColumns:"18px 1fr auto"}}>
+                  <span style={{width:12,height:12,borderRadius:3,background:d.color,display:"inline-block"}}></span>
+                  <span>{d.label}</span>
+                  <span className="money neg" style={{textAlign:"right"}}>{fmtMoney(d.value)}</span>
+                </div>
+              ))}
             </div>
-            <span className="money neg" style={{textAlign:"right"}}>{fmtMoney(valor)}</span>
           </div>
-        ))}
+        )}
+      </div>
+
+      <div className="card">
+        <h2>Gasto no cartão por pessoa — {mesLabel(mesAtual)}</h2>
+        {dadosPessoa.length===0 && <div className="empty-state">Nenhuma compra de cartão neste mês.</div>}
+        {dadosPessoa.length>0 && (
+          <div style={{display:"flex", gap:28, alignItems:"center", flexWrap:"wrap"}}>
+            <DonutChart data={dadosPessoa} />
+            <div style={{flex:1, minWidth:200}}>
+              {dadosPessoa.map(d=>(
+                <div className="person-bar-row" key={d.label} style={{gridTemplateColumns:"18px 1fr auto"}}>
+                  <span style={{width:12,height:12,borderRadius:3,background:d.color,display:"inline-block"}}></span>
+                  <span>{d.label}</span>
+                  <span className="money neg" style={{textAlign:"right"}}>{fmtMoney(d.value)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="card">
         <h2>Previsão de despesa do cartão — próximos meses</h2>
         <p className="helper" style={{marginBottom:14}}>Gerada automaticamente a partir das parcelas futuras já lançadas. Clique num mês pra ver o detalhe.</p>
+        {proximosMeses.length===0 && <div className="empty-state">Nenhuma despesa futura de cartão prevista nos próximos meses.</div>}
         {proximosMeses.map(m=>(
           <div
             className="ledger-row"
