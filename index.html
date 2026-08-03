@@ -320,6 +320,10 @@ const { useState, useEffect, useRef } = React;
 
 const MESES = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
 
+// Lista fixa de categorias — pra adicionar uma nova, edite aqui e faça o deploy de novo.
+// Não é editável pela interface, de propósito (evita categoria duplicada/escrita diferente).
+const CATEGORIAS = ["Taxi", "Outros"];
+
 // COLE AQUI as URLs que aparecem no terminal depois do "firebase deploy --only functions"
 // Elas vão ter o formato: https://southamerica-east1-SEU-PROJETO.cloudfunctions.net/parseFatura
 const URL_PARSE_FATURA = "https://southamerica-east1-finance-c20f5.cloudfunctions.net/parseFatura";
@@ -531,7 +535,10 @@ function Categorias({data, updateData}){
           </div>
           <div>
             <label>Categoria a aplicar</label>
-            <input value={categoria} onChange={e=>setCategoria(e.target.value)} placeholder="ex: Transporte" />
+            <select value={categoria} onChange={e=>setCategoria(e.target.value)}>
+              <option value="">Selecione...</option>
+              {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
           </div>
           <div style={{display:"flex", alignItems:"flex-end"}}>
             <button className="btn-primary" onClick={addRegra} style={{width:"100%"}}>Adicionar regra</button>
@@ -698,7 +705,10 @@ function Lancamentos({data, updateData}){
           </div>
           <div>
             <label>Categoria</label>
-            <input value={categoria} onChange={e=>setCategoria(e.target.value)} placeholder="ex: serviço, moradia" />
+            <select value={categoria} onChange={e=>setCategoria(e.target.value)}>
+              <option value="">Selecione...</option>
+              {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
           </div>
           <div>
             <label>Mês de referência</label>
