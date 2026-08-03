@@ -322,7 +322,7 @@ const MESES = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov"
 
 // Lista fixa de categorias — pra adicionar uma nova, edite aqui e faça o deploy de novo.
 // Não é editável pela interface, de propósito (evita categoria duplicada/escrita diferente).
-const CATEGORIAS = ["Taxi", "Alimentação", "Moradia", "Cartão de crédito", "Outros"];
+const CATEGORIAS = ["Taxi", "Alimentação", "Moradia", "Outros"];
 
 // COLE AQUI as URLs que aparecem no terminal depois do "firebase deploy --only functions"
 // Elas vão ter o formato: https://southamerica-east1-SEU-PROJETO.cloudfunctions.net/parseFatura
@@ -1037,7 +1037,7 @@ function Dashboard({data}){
     porCategoria[l.categoria||"Outros"] = (porCategoria[l.categoria||"Outros"]||0) + l.valor;
   });
   comprasMes.forEach(c=>{
-    porCategoria[c.categoria||"Outros"] = (porCategoria[c.categoria||"Outros"]||0) + c.valor_parcela;
+    porCategoria["Cartão de crédito"] = (porCategoria["Cartão de crédito"]||0) + c.valor_parcela;
   });
   const dadosCategoria = Object.entries(porCategoria)
     .sort((a,b)=>b[1]-a[1])
