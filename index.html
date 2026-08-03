@@ -567,6 +567,7 @@ function Lancamentos({data, updateData}){
   const [transcript, setTranscript] = useState("");
   const [voiceError, setVoiceError] = useState(null);
   const [voiceFilled, setVoiceFilled] = useState(false);
+  const [erroValidacao, setErroValidacao] = useState(null);
   const recognitionRef = useRef(null);
 
   async function parseVoiceText(texto){
@@ -631,7 +632,14 @@ function Lancamentos({data, updateData}){
   }
 
   function addLancamento(){
-    if(!descricao || !valor) return;
+    if(!descricao || !valor){
+      const faltando = [];
+      if(!descricao) faltando.push("Descrição");
+      if(!valor) faltando.push("Valor");
+      setErroValidacao(`Preencha antes de adicionar: ${faltando.join(" e ")}.`);
+      return;
+    }
+    setErroValidacao(null);
     const novo = {
       id: uid(),
       tipo, natureza, descricao,
@@ -718,6 +726,7 @@ function Lancamentos({data, updateData}){
           </div>
         </div>
         <button className="btn-primary" onClick={addLancamento}>Adicionar lançamento</button>
+        {erroValidacao && <p className="helper" style={{color:"var(--wine)", marginTop:8}}>{erroValidacao}</p>}
       </div>
 
       <div className="card">
