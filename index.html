@@ -322,7 +322,7 @@ const MESES = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov"
 
 // Lista fixa de categorias — pra adicionar uma nova, edite aqui e faça o deploy de novo.
 // Não é editável pela interface, de propósito (evita categoria duplicada/escrita diferente).
-const CATEGORIAS = ["Taxi", "Outros"];
+const CATEGORIAS = ["Taxi", "Alimentação", "Moradia", "Outros"];
 
 // COLE AQUI as URLs que aparecem no terminal depois do "firebase deploy --only functions"
 // Elas vão ter o formato: https://southamerica-east1-SEU-PROJETO.cloudfunctions.net/parseFatura
@@ -917,10 +917,10 @@ function Cartao({data, updateData}){
 }
 
 function Dashboard({data}){
-  const mesAtual = mesRefAtual();
+  const [mesFiltro, setMesFiltro] = useState(mesRefAtual());
   const [mesDetalhe, setMesDetalhe] = useState(null);
-  const lancamentosMes = data.lancamentos.filter(l=>l.mes_referencia===mesAtual);
-  const comprasMes = data.comprasCartao.filter(c=>c.mes_referencia===mesAtual);
+  const lancamentosMes = data.lancamentos.filter(l=>l.mes_referencia===mesFiltro);
+  const comprasMes = data.comprasCartao.filter(c=>c.mes_referencia===mesFiltro);
 
   const receitas = lancamentosMes.filter(l=>l.tipo==="receita").reduce((s,l)=>s+l.valor,0);
   const despesasDiretas = lancamentosMes.filter(l=>l.tipo==="despesa").reduce((s,l)=>s+l.valor,0);
@@ -960,8 +960,16 @@ function Dashboard({data}){
 
   return (
     <div>
-      <h1>Dashboard — {mesLabel(mesAtual)}</h1>
-      <p className="subtitle">Visão consolidada: lançamentos diretos + cartão de crédito, tudo no mesmo lugar.</p>
+      <div style={{display:"flex", justifyContent:"space-between", alignItems:"flex-end", flexWrap:"wrap", gap:12}}>
+        <div>
+          <h1>Dashboard — {mesLabel(mesFiltro)}</h1>
+          <p className="subtitle">Visão consolidada: lançamentos diretos + cartão de crédito, tudo no mesmo lugar.</p>
+        </div>
+        <div style={{marginBottom:24}}>
+          <label>Ver mês</label>
+          <input type="month" value={mesFiltro} onChange={e=>setMesFiltro(e.target.value)} />
+        </div>
+      </div>
 
       <div className="metric-grid">
         <div className="metric">
@@ -980,7 +988,7 @@ function Dashboard({data}){
 
       <div style={{display:"flex", gap:20, flexWrap:"wrap"}}>
         <div className="card" style={{flex:1, minWidth:280}}>
-          <h2>Gasto por categoria — {mesLabel(mesAtual)}</h2>
+          <h2>Gasto por categoria — {mesLabel(mesFiltro)}</h2>
           {dadosCategoria.length===0 && <div className="empty-state">Nenhuma despesa neste mês ainda.</div>}
           {dadosCategoria.length>0 && (
             <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:14}}>
@@ -998,7 +1006,7 @@ function Dashboard({data}){
         </div>
 
         <div className="card" style={{flex:1, minWidth:280}}>
-          <h2>Gasto no cartão por pessoa — {mesLabel(mesAtual)}</h2>
+          <h2>Gasto no cartão por pessoa — {mesLabel(mesFiltro)}</h2>
           {dadosPessoa.length===0 && <div className="empty-state">Nenhuma compra de cartão neste mês.</div>}
           {dadosPessoa.length>0 && (
             <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:14}}>
