@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Controle Financeiro — Protótipo</title>
+<title>Gestão Financeira</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
@@ -483,11 +483,9 @@ function App(){
   return (
     <div className="app">
       <div className="sidebar">
-        <p className="brand">KlareIA</p>
-        <p className="brand-sub">controle financeiro</p>
+        <p className="brand">Gestão Financeira</p>
         <div className={`nav-item ${view==="lancamentos"?"active":""}`} onClick={()=>setView("lancamentos")}>Lançamentos</div>
         <div className={`nav-item ${view==="cartao"?"active":""}`} onClick={()=>setView("cartao")}>Cartão de crédito</div>
-        <div className={`nav-item ${view==="categorias"?"active":""}`} onClick={()=>setView("categorias")}>Categorias</div>
         <div className={`nav-item ${view==="dashboard"?"active":""}`} onClick={()=>setView("dashboard")}>Dashboard</div>
       </div>
       <div className="main">
@@ -498,7 +496,6 @@ function App(){
         )}
         {view==="lancamentos" && <Lancamentos data={data} updateData={updateData} />}
         {view==="cartao" && <Cartao data={data} updateData={updateData} />}
-        {view==="categorias" && <Categorias data={data} updateData={updateData} />}
         {view==="dashboard" && <Dashboard data={data} />}
       </div>
     </div>
