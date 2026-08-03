@@ -35,7 +35,7 @@ function extrairJson(claudeResponse) {
   return JSON.parse(match[0]);
 }
 
-// Endpoint 1: recebe o print ou PDF da fatura, devolve as compras já extraídas
+// Endpoint 1: recebe o print da fatura, devolve as compras já extraídas
 exports.parseFatura = onRequest(
   { secrets: [ANTHROPIC_API_KEY], cors: true, region: REGION },
   async (req, res) => {
@@ -64,7 +64,7 @@ exports.parseFatura = onRequest(
               {
                 type: "text",
                 text:
-                  'Esta é uma fatura de cartão de crédito. Extraia cada linha de compra e retorne APENAS um array JSON, sem markdown, sem texto antes ou depois, no formato: [{"descricao": string, "valor_parcela": number, "parcela_atual": number, "parcela_total": number}]. Se a compra não for parcelada, use parcela_atual: 1, parcela_total: 1. Use ponto como separador decimal no valor. Se a fatura tiver várias páginas, extraia as compras de todas elas.',
+                  'Esta é uma fatura de cartão de crédito. Extraia CADA linha da fatura — tanto as compras quanto os créditos/estornos/pagamentos recebidos — e retorne APENAS um array JSON, sem markdown, sem texto antes ou depois, no formato: [{"descricao": string, "valor_parcela": number, "parcela_atual": number, "parcela_total": number}]. Regras importantes: (1) Se a compra não for parcelada, use parcela_atual: 1, parcela_total: 1. (2) Use ponto como separador decimal no valor. (3) Linhas de crédito, estorno, desconto ou pagamento recebido devem ter valor_parcela NEGATIVO (ex: -150.00), já que elas abatem do total da fatura em vez de somar. (4) Se a fatura tiver várias páginas, extraia todas as linhas de todas elas. (5) A soma de todos os valor_parcela deve bater com o valor total da fatura.',
               },
             ],
           },

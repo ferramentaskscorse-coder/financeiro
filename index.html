@@ -356,6 +356,13 @@ function mesRefAtual(offset=0){
   d.setMonth(d.getMonth()+offset);
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
 }
+// Igual mesRefAtual, mas parte de um mês base escolhido (ex: mês de referência da fatura)
+// em vez de partir sempre do mês de hoje.
+function mesRefDesde(baseRef, offset=0){
+  const [ano, mes] = baseRef.split("-").map(Number);
+  const d = new Date(ano, (mes-1)+offset, 1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+}
 function mesLabel(ref){
   const [y,m] = ref.split("-");
   return `${MESES[parseInt(m,10)-1]}/${y.slice(2)}`;
@@ -785,6 +792,7 @@ function Cartao({data, updateData}){
   const [processing, setProcessing] = useState(false);
   const [reviewItems, setReviewItems] = useState(null);
   const [error, setError] = useState(null);
+  const [mesReferenciaFatura, setMesReferenciaFatura] = useState(mesRefAtual());
   const fileRef = useRef(null);
 
   function handleFile(e){
@@ -857,7 +865,7 @@ function Cartao({data, updateData}){
           parcela_total: item.parcela_total,
           responsavel: item.responsavel || "não informado",
           categoria: item.categoria,
-          mes_referencia: mesRefAtual(i),
+          mes_referencia: mesRefDesde(mesReferenciaFatura, i),
         });
       }
     });
@@ -877,6 +885,13 @@ function Cartao({data, updateData}){
       {!reviewItems && (
         <div className="card">
           <h2>Importar fatura</h2>
+          <div className="row row-2" style={{marginBottom:16}}>
+            <div>
+              <label>Mês de referência desta fatura</label>
+              <input type="month" value={mesReferenciaFatura} onChange={e=>setMesReferenciaFatura(e.target.value)} />
+              <p className="helper" style={{marginTop:4}}>O mês real da fatura (ex: se ela é de junho mas você paga em julho, escolha junho aqui). As parcelas futuras são contadas a partir desse mês, não do mês de hoje.</p>
+            </div>
+          </div>
           <div className="upload-zone" onClick={()=>fileRef.current.click()}>
             {processing ? <span><span className="loading-dot"></span>Lendo a fatura...</span> : "Clique para enviar o print ou o PDF da fatura"}
           </div>
@@ -888,7 +903,7 @@ function Cartao({data, updateData}){
       {reviewItems && (
         <div className="card">
           <h2>Confira antes de importar</h2>
-          <p className="helper" style={{marginBottom:14}}>Ajuste valores se o OCR errar algo e marque quem fez cada compra.</p>
+          <p className="helper" style={{marginBottom:14}}>Ajuste valores se o OCR errar algo e marque quem fez cada compra. Créditos, estornos ou pagamentos recebidos devem ter valor negativo (ex: -150.00) — eles abatem do total automaticamente.</p>
           <table className="review-table">
             <thead>
               <tr><th>Descrição</th><th>Valor parcela</th><th>Parcela</th><th>Total parcelas</th><th>Quem comprou</th><th></th></tr>
@@ -925,7 +940,9 @@ function Cartao({data, updateData}){
                 parcela {c.parcela_atual}/{c.parcela_total} · {c.responsavel} · {mesLabel(c.mes_referencia)}
               </div>
             </div>
-            <span className="money neg">-{fmtMoney(c.valor_parcela)}</span>
+            <span className={`money ${(-c.valor_parcela)<0 ? "neg" : "pos"}`}>
+              {(-c.valor_parcela)>=0 ? "+" : ""}{fmtMoney(-c.valor_parcela)}
+            </span>
             <span></span>
             <span></span>
           </div>
@@ -1079,7 +1096,9 @@ function Dashboard({data}){
                           parcela {c.parcela_atual}/{c.parcela_total} · {c.responsavel}
                         </div>
                       </div>
-                      <span className="money neg">{fmtMoney(c.valor_parcela)}</span>
+                      <span className={`money ${(-c.valor_parcela)<0 ? "neg" : "pos"}`}>
+                        {(-c.valor_parcela)>=0 ? "+" : ""}{fmtMoney(-c.valor_parcela)}
+                      </span>
                       <span></span>
                       <span></span>
                     </div>
