@@ -446,6 +446,7 @@ function App(){
   const [loading, setLoading] = useState(true);
   const [erroCarregamento, setErroCarregamento] = useState(null);
   const [erroSalvamento, setErroSalvamento] = useState(null);
+  const [atualizando, setAtualizando] = useState(false);
 
   useEffect(()=>{
     loadData()
@@ -456,6 +457,19 @@ function App(){
         setLoading(false);
       });
   },[]);
+
+  async function atualizarDados(){
+    setAtualizando(true);
+    try{
+      const d = await loadData();
+      setData(d);
+    }catch(e){
+      console.error("Falha ao atualizar dados:", e);
+      setErroSalvamento("Não consegui buscar os dados mais recentes. Verifique sua internet.");
+    }finally{
+      setAtualizando(false);
+    }
+  }
 
   async function updateData(next){
     setData(next);
@@ -487,6 +501,14 @@ function App(){
         <div className={`nav-item ${view==="lancamentos"?"active":""}`} onClick={()=>setView("lancamentos")}>Lançamentos</div>
         <div className={`nav-item ${view==="cartao"?"active":""}`} onClick={()=>setView("cartao")}>Cartão de crédito</div>
         <div className={`nav-item ${view==="dashboard"?"active":""}`} onClick={()=>setView("dashboard")}>Dashboard</div>
+        <button
+          className="btn-ghost"
+          style={{width:"100%", marginTop:16, color:"#d9c7b3", borderColor:"#4a2c1c"}}
+          onClick={atualizarDados}
+          disabled={atualizando}
+        >
+          {atualizando ? "Atualizando..." : "↻ Atualizar dados"}
+        </button>
       </div>
       <div className="main">
         {erroSalvamento && (
@@ -664,7 +686,7 @@ function Lancamentos({data, updateData}){
   return (
     <div>
       <h1>Lançamentos</h1>
-      <p className="subtitle">Receitas e despesas, fixas ou variáveis — do jeito que você já lança na planilha.</p>
+      <p className="subtitle">Receitas e despesas, fixas ou variáveis.</p>
 
       <div className="card">
         <h2>Novo lançamento</h2>
