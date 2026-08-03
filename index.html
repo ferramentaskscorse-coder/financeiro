@@ -155,6 +155,9 @@
   .tag-despesa{ background:var(--wine-soft); color:var(--wine); }
   .tag-fixa{ background:#eee; color:#666; }
   .tag-variavel{ background:var(--orange-soft); color:var(--orange); }
+  .tag-pago{ background:#dcecd3; color:#3B6D11; }
+  .tag-vencido{ background:var(--wine-soft); color:var(--wine); }
+  .tag-apagar{ background:var(--gold-soft); color:#6b5216; }
   .ledger-row{
     display:grid;
     grid-template-columns:auto 1fr auto auto auto;
@@ -468,6 +471,19 @@ function categorizarAutomatico(descricao, regras){
   return regra ? regra.categoria : null;
 }
 
+// Calcula o status real de uma despesa: Pago (se marcado), Vencido (se tem vencimento
+// no passado e não foi pago) ou A pagar (ainda dentro do prazo, ou sem vencimento definido).
+function statusDespesa(l){
+  if(l.status_pagamento === "pago") return "Pago";
+  if(l.data_vencimento){
+    const hoje = new Date();
+    hoje.setHours(0,0,0,0);
+    const venc = new Date(l.data_vencimento + "T00:00:00");
+    if(venc < hoje) return "Vencido";
+  }
+  return "A pagar";
+}
+
 async function loadData(){
   try{
     await garantirLogin();
@@ -635,6 +651,8 @@ function Lancamentos({data, updateData}){
   const [valor, setValor] = useState("");
   const [categoria, setCategoria] = useState("");
   const [mesRef, setMesRef] = useState(mesRefAtual());
+  const [dataVencimento, setDataVencimento] = useState("");
+  const [statusPagamento, setStatusPagamento] = useState("pendente");
   const [listening, setListening] = useState(false);
   const [processingVoice, setProcessingVoice] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -719,10 +737,12 @@ function Lancamentos({data, updateData}){
       valor: parseFloat(valor),
       categoria: categoria || "Outros",
       mes_referencia: mesRef,
+      data_vencimento: tipo==="despesa" ? (dataVencimento || null) : null,
+      status_pagamento: tipo==="despesa" ? statusPagamento : null,
     };
     const next = { ...data, lancamentos: [novo, ...data.lancamentos] };
     updateData(next);
-    setDescricao(""); setValor(""); setCategoria(""); setVoiceFilled(false); setTranscript("");
+    setDescricao(""); setValor(""); setCategoria(""); setVoiceFilled(false); setTranscript(""); setDataVencimento(""); setStatusPagamento("pendente");
   }
   function remover(id){
     updateData({ ...data, lancamentos: data.lancamentos.filter(l=>l.id!==id) });
@@ -801,6 +821,21 @@ function Lancamentos({data, updateData}){
             <input type="number" step="0.01" value={valor} onChange={e=>setValor(e.target.value)} placeholder="0,00" />
           </div>
         </div>
+        {tipo==="despesa" && (
+          <div className="row row-2">
+            <div>
+              <label>Data de vencimento (opcional)</label>
+              <input type="date" value={dataVencimento} onChange={e=>setDataVencimento(e.target.value)} />
+            </div>
+            <div>
+              <label>Status</label>
+              <select value={statusPagamento} onChange={e=>setStatusPagamento(e.target.value)}>
+                <option value="pendente">A pagar</option>
+                <option value="pago">Pago</option>
+              </select>
+            </div>
+          </div>
+        )}
         <button className="btn-primary" onClick={addLancamento}>Adicionar lançamento</button>
         {erroValidacao && <p className="helper" style={{color:"var(--wine)", marginTop:8}}>{erroValidacao}</p>}
       </div>
@@ -808,20 +843,42 @@ function Lancamentos({data, updateData}){
       <div className="card">
         <h2>Histórico</h2>
         {ordenados.length===0 && <div className="empty-state">Nenhum lançamento ainda. Adicione o primeiro acima.</div>}
-        {ordenados.map(l=>(
-          <div className="ledger-row" key={l.id}>
-            <span className={`tag ${l.tipo==="receita"?"tag-receita":"tag-despesa"}`}>{l.tipo}</span>
-            <div>
-              <div style={{fontWeight:500}}>{l.descricao}</div>
-              <div style={{fontSize:12,color:"var(--ink-soft)"}}>
-                {l.categoria} · <span className={`tag ${l.natureza==="fixa"?"tag-fixa":"tag-variavel"}`}>{l.natureza}</span> · {mesLabel(l.mes_referencia)}
+        {ordenados.map(l=>{
+          const status = l.tipo==="despesa" ? statusDespesa(l) : null;
+          const tagClasse = status==="Pago" ? "tag-pago" : status==="Vencido" ? "tag-vencido" : "tag-apagar";
+          return (
+            <div className="ledger-row" key={l.id}>
+              <span className={`tag ${l.tipo==="receita"?"tag-receita":"tag-despesa"}`}>{l.tipo}</span>
+              <div>
+                <div style={{fontWeight:500}}>{l.descricao}</div>
+                <div style={{fontSize:12,color:"var(--ink-soft)"}}>
+                  {l.categoria} · <span className={`tag ${l.natureza==="fixa"?"tag-fixa":"tag-variavel"}`}>{l.natureza}</span> · {mesLabel(l.mes_referencia)}
+                  {status && <> · <span className={`tag ${tagClasse}`}>{status}</span></>}
+                  {l.data_vencimento && <> · vence {l.data_vencimento.split("-").reverse().join("/")}</>}
+                </div>
               </div>
+              <span className={`money ${l.tipo==="receita"?"pos":"neg"}`}>{l.tipo==="receita"?"+":"-"}{fmtMoney(l.valor)}</span>
+              {status && status!=="Pago" && (
+                <button
+                  className="btn-ghost"
+                  onClick={()=>updateData({ ...data, lancamentos: data.lancamentos.map(x=>x.id===l.id?{...x, status_pagamento:"pago"}:x) })}
+                >
+                  Marcar pago
+                </button>
+              )}
+              {status === "Pago" && (
+                <button
+                  className="btn-ghost"
+                  onClick={()=>updateData({ ...data, lancamentos: data.lancamentos.map(x=>x.id===l.id?{...x, status_pagamento:"pendente"}:x) })}
+                >
+                  Desfazer
+                </button>
+              )}
+              {!status && <span></span>}
+              <button className="btn-danger" onClick={()=>remover(l.id)}>Remover</button>
             </div>
-            <span className={`money ${l.tipo==="receita"?"pos":"neg"}`}>{l.tipo==="receita"?"+":"-"}{fmtMoney(l.valor)}</span>
-            <span></span>
-            <button className="btn-danger" onClick={()=>remover(l.id)}>Remover</button>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -1094,6 +1151,17 @@ function Dashboard({data}){
     .sort((a,b)=>b[1]-a[1])
     .map(([label,value],i)=>({ label, value, color: PALETA_CORES[i % PALETA_CORES.length] }));
 
+  // Despesas por status (Pago / A pagar / Vencido) — só lançamentos diretos com vencimento/status
+  const CORES_STATUS = { "Pago": "#3B6D11", "A pagar": "#C9A84C", "Vencido": "#7A2E1D" };
+  const porStatus = {};
+  lancamentosMes.filter(l=>l.tipo==="despesa").forEach(l=>{
+    const st = statusDespesa(l);
+    porStatus[st] = (porStatus[st]||0) + l.valor;
+  });
+  const dadosStatus = ["Pago","A pagar","Vencido"]
+    .filter(st => porStatus[st] > 0)
+    .map(st => ({ label: st, value: porStatus[st], color: CORES_STATUS[st] }));
+
   // Previsão de despesa do cartão — olha os próximos 6 meses
   const todosProximosMeses = [1,2,3,4,5,6].map(offset=>{
     const ref = mesRefAtual(offset);
@@ -1170,6 +1238,25 @@ function Dashboard({data}){
               + créditos/estornos aplicados este mês: {fmtMoney(-creditosMes)} (não atribuídos a uma pessoa)
             </p>
           )}
+        </div>
+
+        <div className="card" style={{flex:1, minWidth:280}}>
+          <h2>Despesas por status — {mesLabel(mesFiltro)}</h2>
+          {dadosStatus.length===0 && <div className="empty-state">Nenhuma despesa com vencimento/status neste mês.</div>}
+          {dadosStatus.length>0 && (
+            <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:14}}>
+              <DonutChart data={dadosStatus} />
+              <div style={{display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center"}}>
+                {dadosStatus.map(d=>(
+                  <span key={d.label} title={fmtMoney(d.value)} style={{display:"flex",alignItems:"center",gap:6,fontSize:13,cursor:"default"}}>
+                    <span style={{width:10,height:10,borderRadius:3,background:d.color,display:"inline-block"}}></span>
+                    {d.label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          <p className="helper" style={{marginTop:14}}>Só considera despesas com vencimento e/ou status marcados no lançamento.</p>
         </div>
       </div>
 
