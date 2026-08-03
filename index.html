@@ -832,7 +832,29 @@ function Cartao({data, updateData}){
   const [reviewItems, setReviewItems] = useState(null);
   const [error, setError] = useState(null);
   const [mesPagamentoFatura, setMesPagamentoFatura] = useState(mesRefAtual());
+  const [editandoId, setEditandoId] = useState(null);
+  const [edicaoTemp, setEdicaoTemp] = useState(null);
   const fileRef = useRef(null);
+
+  function iniciarEdicao(c){
+    setEditandoId(c.id);
+    setEdicaoTemp({ descricao: c.descricao, valor_parcela: c.valor_parcela, responsavel: c.responsavel });
+  }
+  function salvarEdicao(id){
+    updateData({
+      ...data,
+      comprasCartao: data.comprasCartao.map(x => x.id===id
+        ? { ...x, descricao: edicaoTemp.descricao, valor_parcela: parseFloat(edicaoTemp.valor_parcela), responsavel: edicaoTemp.responsavel }
+        : x
+      )
+    });
+    setEditandoId(null);
+    setEdicaoTemp(null);
+  }
+  function cancelarEdicao(){
+    setEditandoId(null);
+    setEdicaoTemp(null);
+  }
 
   function handleFile(e){
     const file = e.target.files[0];
@@ -984,27 +1006,53 @@ function Cartao({data, updateData}){
           )}
         </div>
         {comprasOrdenadas.length===0 && <div className="empty-state">Nenhuma compra de cartão importada ainda.</div>}
-        {comprasOrdenadas.map(c=>(
-          <div className="ledger-row" key={c.id}>
-            <div className="stamp">{(c.responsavel||"?").slice(0,2).toUpperCase()}</div>
-            <div>
-              <div style={{fontWeight:500}}>{c.descricao}</div>
-              <div style={{fontSize:12,color:"var(--ink-soft)"}}>
-                parcela {c.parcela_atual}/{c.parcela_total} · {c.responsavel} · {mesLabel(c.mes_referencia)}
+        {comprasOrdenadas.map(c=>{
+          if(editandoId === c.id){
+            return (
+              <div key={c.id} style={{padding:"12px 0", borderBottom:"1px dashed var(--paper-line)"}}>
+                <div className="row row-3" style={{marginBottom:10}}>
+                  <div>
+                    <label>Descrição</label>
+                    <input value={edicaoTemp.descricao} onChange={e=>setEdicaoTemp({...edicaoTemp, descricao:e.target.value})} />
+                  </div>
+                  <div>
+                    <label>Valor da parcela</label>
+                    <input type="number" step="0.01" value={edicaoTemp.valor_parcela} onChange={e=>setEdicaoTemp({...edicaoTemp, valor_parcela:e.target.value})} />
+                  </div>
+                  <div>
+                    <label>Quem comprou</label>
+                    <input value={edicaoTemp.responsavel} onChange={e=>setEdicaoTemp({...edicaoTemp, responsavel:e.target.value})} placeholder="ex: Eu, Marido" />
+                  </div>
+                </div>
+                <div style={{display:"flex", gap:8}}>
+                  <button className="btn-primary" onClick={()=>salvarEdicao(c.id)}>Salvar</button>
+                  <button className="btn-ghost" onClick={cancelarEdicao}>Cancelar</button>
+                </div>
               </div>
+            );
+          }
+          return (
+            <div className="ledger-row" key={c.id}>
+              <div className="stamp">{(c.responsavel||"?").slice(0,2).toUpperCase()}</div>
+              <div>
+                <div style={{fontWeight:500}}>{c.descricao}</div>
+                <div style={{fontSize:12,color:"var(--ink-soft)"}}>
+                  parcela {c.parcela_atual}/{c.parcela_total} · {c.responsavel} · {mesLabel(c.mes_referencia)}
+                </div>
+              </div>
+              <span className={`money ${(-c.valor_parcela)<0 ? "neg" : "pos"}`}>
+                {(-c.valor_parcela)>=0 ? "+" : ""}{fmtMoney(-c.valor_parcela)}
+              </span>
+              <button className="btn-ghost" onClick={()=>iniciarEdicao(c)}>Editar</button>
+              <button
+                className="btn-danger"
+                onClick={()=>updateData({ ...data, comprasCartao: data.comprasCartao.filter(x=>x.id!==c.id) })}
+              >
+                Remover
+              </button>
             </div>
-            <span className={`money ${(-c.valor_parcela)<0 ? "neg" : "pos"}`}>
-              {(-c.valor_parcela)>=0 ? "+" : ""}{fmtMoney(-c.valor_parcela)}
-            </span>
-            <span></span>
-            <button
-              className="btn-danger"
-              onClick={()=>updateData({ ...data, comprasCartao: data.comprasCartao.filter(x=>x.id!==c.id) })}
-            >
-              Remover
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
