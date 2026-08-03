@@ -55,7 +55,7 @@ exports.parseFatura = onRequest(
 
       const claudeResponse = await callClaude(ANTHROPIC_API_KEY.value(), {
         model: "claude-sonnet-4-6",
-        max_tokens: 2000,
+        max_tokens: 4096,
         messages: [
           {
             role: "user",
@@ -71,6 +71,9 @@ exports.parseFatura = onRequest(
         ],
       });
 
+      if(claudeResponse.stop_reason === "max_tokens"){
+        throw new Error("A fatura tem muitas linhas e a resposta foi cortada. Tente dividir em duas fotos/PDFs menores (ex: metade das páginas de cada vez).");
+      }
       const itens = extrairJson(claudeResponse);
       res.status(200).json({ itens });
     } catch (err) {

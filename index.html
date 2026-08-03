@@ -420,6 +420,41 @@ function DonutChart({data, size=150}){
   );
 }
 
+// Gráfico de linha em SVG puro, recebe [{label, value}] em ordem cronológica
+function LineChart({data, height=170}){
+  const width = 640;
+  const padding = 44;
+  const maxVal = Math.max(1, ...data.map(d=>d.value));
+  const stepX = data.length>1 ? (width - padding*2) / (data.length-1) : 0;
+  const pontos = data.map((d,i)=>{
+    const x = padding + i*stepX;
+    const y = height - padding - (d.value/maxVal) * (height - padding*2);
+    return { ...d, x, y };
+  });
+  const linhaD = pontos.map((p,i)=> `${i===0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+  const areaD = pontos.length>0
+    ? `${linhaD} L ${pontos[pontos.length-1].x} ${height-padding} L ${pontos[0].x} ${height-padding} Z`
+    : "";
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} width="100%" height={height} style={{maxWidth:640}}>
+      <line x1={padding} y1={height-padding} x2={width-padding} y2={height-padding} stroke="var(--paper-line)" strokeWidth="1" />
+      {pontos.length>0 && <path d={areaD} fill="var(--orange-soft)" opacity="0.5" />}
+      {pontos.length>0 && <path d={linhaD} fill="none" stroke="var(--orange)" strokeWidth="2.5" />}
+      {pontos.map((p,i)=>(
+        <g key={i}>
+          <circle cx={p.x} cy={p.y} r="4.5" fill="var(--orange)" stroke="#fff" strokeWidth="1.5" style={{cursor:"pointer"}}>
+            <title>{`${p.label}: ${fmtMoney(p.value)}`}</title>
+          </circle>
+          <text x={p.x} y={height-padding+18} textAnchor="middle" fontSize="11" fontFamily="'Work Sans',sans-serif" fill="var(--ink-soft)">
+            {p.label}
+          </text>
+        </g>
+      ))}
+    </svg>
+  );
+}
+
 
 
 // Aplica as regras de categoria automática: procura a primeira regra cuja palavra-chave
@@ -796,7 +831,7 @@ function Cartao({data, updateData}){
   const [processing, setProcessing] = useState(false);
   const [reviewItems, setReviewItems] = useState(null);
   const [error, setError] = useState(null);
-  const [mesReferenciaFatura, setMesReferenciaFatura] = useState(mesRefAtual());
+  const [mesPagamentoFatura, setMesPagamentoFatura] = useState(mesRefAtual());
   const fileRef = useRef(null);
 
   function handleFile(e){
@@ -869,7 +904,7 @@ function Cartao({data, updateData}){
           parcela_total: item.parcela_total,
           responsavel: item.responsavel || "não informado",
           categoria: item.categoria,
-          mes_referencia: mesRefDesde(mesReferenciaFatura, i),
+          mes_referencia: mesRefDesde(mesPagamentoFatura, i),
         });
       }
     });
@@ -891,9 +926,9 @@ function Cartao({data, updateData}){
           <h2>Importar fatura</h2>
           <div className="row row-2" style={{marginBottom:16}}>
             <div>
-              <label>Mês de referência desta fatura</label>
-              <input type="month" value={mesReferenciaFatura} onChange={e=>setMesReferenciaFatura(e.target.value)} />
-              <p className="helper" style={{marginTop:4}}>O mês real da fatura (ex: se ela é de junho mas você paga em julho, escolha junho aqui). As parcelas futuras são contadas a partir desse mês, não do mês de hoje.</p>
+              <label>Mês em que essa fatura é paga</label>
+              <input type="month" value={mesPagamentoFatura} onChange={e=>setMesPagamentoFatura(e.target.value)} />
+              <p className="helper" style={{marginTop:4}}>O mês em que a fatura é efetivamente paga/cobrada (não o mês de fechamento). Ex: fatura fechada em junho mas paga em julho → escolha julho aqui. As parcelas futuras são contadas a partir desse mês.</p>
             </div>
           </div>
           <div className="upload-zone" onClick={()=>fileRef.current.click()}>
@@ -1008,14 +1043,13 @@ function Dashboard({data}){
     .sort((a,b)=>b[1]-a[1])
     .map(([label,value],i)=>({ label, value, color: PALETA_CORES[i % PALETA_CORES.length] }));
 
-  // Previsão de despesa do cartão — olha os próximos 6 meses, só mostra os que têm valor
-  const proximosMeses = [1,2,3,4,5,6]
-    .map(offset=>{
-      const ref = mesRefAtual(offset);
-      const total = data.comprasCartao.filter(c=>c.mes_referencia===ref).reduce((s,c)=>s+c.valor_parcela,0);
-      return { ref, total };
-    })
-    .filter(m => m.total > 0);
+  // Previsão de despesa do cartão — olha os próximos 6 meses
+  const todosProximosMeses = [1,2,3,4,5,6].map(offset=>{
+    const ref = mesRefAtual(offset);
+    const total = data.comprasCartao.filter(c=>c.mes_referencia===ref).reduce((s,c)=>s+c.valor_parcela,0);
+    return { ref, total };
+  });
+  const proximosMeses = todosProximosMeses.filter(m => m.total > 0);
 
   return (
     <div>
@@ -1085,7 +1119,13 @@ function Dashboard({data}){
 
       <div className="card">
         <h2>Previsão de despesa do cartão — próximos meses</h2>
-        <p className="helper" style={{marginBottom:14}}>Gerada automaticamente a partir das parcelas futuras já lançadas. Clique num mês pra ver o detalhe.</p>
+        <p className="helper" style={{marginBottom:14}}>Gerada automaticamente a partir das parcelas futuras já lançadas.</p>
+        {todosProximosMeses.some(m=>m.total>0) && (
+          <div style={{marginBottom:20, display:"flex", justifyContent:"center"}}>
+            <LineChart data={todosProximosMeses.map(m=>({ label: mesLabel(m.ref), value: m.total }))} />
+          </div>
+        )}
+        <p className="helper" style={{marginBottom:14}}>Clique num mês pra ver o detalhe.</p>
         {proximosMeses.length===0 && <div className="empty-state">Nenhuma despesa futura de cartão prevista nos próximos meses.</div>}
         {proximosMeses.map(m=>{
           const aberto = mesDetalhe === m.ref;
