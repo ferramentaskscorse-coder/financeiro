@@ -659,6 +659,8 @@ function Lancamentos({data, updateData}){
   const [voiceError, setVoiceError] = useState(null);
   const [voiceFilled, setVoiceFilled] = useState(false);
   const [erroValidacao, setErroValidacao] = useState(null);
+  const [editandoId, setEditandoId] = useState(null);
+  const [edicaoTemp, setEdicaoTemp] = useState(null);
   const recognitionRef = useRef(null);
 
   async function parseVoiceText(texto){
@@ -746,6 +748,44 @@ function Lancamentos({data, updateData}){
   }
   function remover(id){
     updateData({ ...data, lancamentos: data.lancamentos.filter(l=>l.id!==id) });
+  }
+  function iniciarEdicaoLancamento(l){
+    setEditandoId(l.id);
+    setEdicaoTemp({
+      tipo: l.tipo,
+      natureza: l.natureza,
+      descricao: l.descricao,
+      valor: l.valor,
+      categoria: l.categoria || "Outros",
+      mes_referencia: l.mes_referencia,
+      data_vencimento: l.data_vencimento || "",
+      status_pagamento: l.status_pagamento || "pendente",
+    });
+  }
+  function salvarEdicaoLancamento(id){
+    updateData({
+      ...data,
+      lancamentos: data.lancamentos.map(x => x.id===id
+        ? {
+            ...x,
+            tipo: edicaoTemp.tipo,
+            natureza: edicaoTemp.natureza,
+            descricao: edicaoTemp.descricao,
+            valor: parseFloat(edicaoTemp.valor),
+            categoria: edicaoTemp.categoria,
+            mes_referencia: edicaoTemp.mes_referencia,
+            data_vencimento: edicaoTemp.tipo==="despesa" ? (edicaoTemp.data_vencimento || null) : null,
+            status_pagamento: edicaoTemp.tipo==="despesa" ? edicaoTemp.status_pagamento : null,
+          }
+        : x
+      )
+    });
+    setEditandoId(null);
+    setEdicaoTemp(null);
+  }
+  function cancelarEdicaoLancamento(){
+    setEditandoId(null);
+    setEdicaoTemp(null);
   }
 
   const ordenados = [...data.lancamentos].sort((a,b)=> b.mes_referencia.localeCompare(a.mes_referencia));
@@ -844,6 +884,67 @@ function Lancamentos({data, updateData}){
         <h2>Histórico</h2>
         {ordenados.length===0 && <div className="empty-state">Nenhum lançamento ainda. Adicione o primeiro acima.</div>}
         {ordenados.map(l=>{
+          if(editandoId === l.id){
+            return (
+              <div key={l.id} style={{padding:"14px 0", borderBottom:"1px dashed var(--paper-line)"}}>
+                <div className="row row-4" style={{marginBottom:10}}>
+                  <div>
+                    <label>Tipo</label>
+                    <select value={edicaoTemp.tipo} onChange={e=>setEdicaoTemp({...edicaoTemp, tipo:e.target.value})}>
+                      <option value="receita">Receita</option>
+                      <option value="despesa">Despesa</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Natureza</label>
+                    <select value={edicaoTemp.natureza} onChange={e=>setEdicaoTemp({...edicaoTemp, natureza:e.target.value})}>
+                      <option value="fixa">Fixa</option>
+                      <option value="variavel">Variável</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label>Categoria</label>
+                    <select value={edicaoTemp.categoria} onChange={e=>setEdicaoTemp({...edicaoTemp, categoria:e.target.value})}>
+                      {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label>Mês de referência</label>
+                    <input type="month" value={edicaoTemp.mes_referencia} onChange={e=>setEdicaoTemp({...edicaoTemp, mes_referencia:e.target.value})} />
+                  </div>
+                </div>
+                <div className="row row-2" style={{marginBottom:10}}>
+                  <div>
+                    <label>Descrição</label>
+                    <input value={edicaoTemp.descricao} onChange={e=>setEdicaoTemp({...edicaoTemp, descricao:e.target.value})} />
+                  </div>
+                  <div>
+                    <label>Valor (R$)</label>
+                    <input type="number" step="0.01" value={edicaoTemp.valor} onChange={e=>setEdicaoTemp({...edicaoTemp, valor:e.target.value})} />
+                  </div>
+                </div>
+                {edicaoTemp.tipo==="despesa" && (
+                  <div className="row row-2" style={{marginBottom:10}}>
+                    <div>
+                      <label>Data de vencimento (opcional)</label>
+                      <input type="date" value={edicaoTemp.data_vencimento} onChange={e=>setEdicaoTemp({...edicaoTemp, data_vencimento:e.target.value})} />
+                    </div>
+                    <div>
+                      <label>Status</label>
+                      <select value={edicaoTemp.status_pagamento} onChange={e=>setEdicaoTemp({...edicaoTemp, status_pagamento:e.target.value})}>
+                        <option value="pendente">A pagar</option>
+                        <option value="pago">Pago</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+                <div style={{display:"flex", gap:8}}>
+                  <button className="btn-primary" onClick={()=>salvarEdicaoLancamento(l.id)}>Salvar</button>
+                  <button className="btn-ghost" onClick={cancelarEdicaoLancamento}>Cancelar</button>
+                </div>
+              </div>
+            );
+          }
           const status = l.tipo==="despesa" ? statusDespesa(l) : null;
           const tagClasse = status==="Pago" ? "tag-pago" : status==="Vencido" ? "tag-vencido" : "tag-apagar";
           return (
@@ -858,23 +959,25 @@ function Lancamentos({data, updateData}){
                 </div>
               </div>
               <span className={`money ${l.tipo==="receita"?"pos":"neg"}`}>{l.tipo==="receita"?"+":"-"}{fmtMoney(l.valor)}</span>
-              {status && status!=="Pago" && (
-                <button
-                  className="btn-ghost"
-                  onClick={()=>updateData({ ...data, lancamentos: data.lancamentos.map(x=>x.id===l.id?{...x, status_pagamento:"pago"}:x) })}
-                >
-                  Marcar pago
-                </button>
-              )}
-              {status === "Pago" && (
-                <button
-                  className="btn-ghost"
-                  onClick={()=>updateData({ ...data, lancamentos: data.lancamentos.map(x=>x.id===l.id?{...x, status_pagamento:"pendente"}:x) })}
-                >
-                  Desfazer
-                </button>
-              )}
-              {!status && <span></span>}
+              <div style={{display:"flex", gap:6}}>
+                {status && status!=="Pago" && (
+                  <button
+                    className="btn-ghost"
+                    onClick={()=>updateData({ ...data, lancamentos: data.lancamentos.map(x=>x.id===l.id?{...x, status_pagamento:"pago"}:x) })}
+                  >
+                    Marcar pago
+                  </button>
+                )}
+                {status === "Pago" && (
+                  <button
+                    className="btn-ghost"
+                    onClick={()=>updateData({ ...data, lancamentos: data.lancamentos.map(x=>x.id===l.id?{...x, status_pagamento:"pendente"}:x) })}
+                  >
+                    Desfazer
+                  </button>
+                )}
+                <button className="btn-ghost" onClick={()=>iniciarEdicaoLancamento(l)}>Editar</button>
+              </div>
               <button className="btn-danger" onClick={()=>remover(l.id)}>Remover</button>
             </div>
           );
@@ -1200,7 +1303,7 @@ function Dashboard({data}){
 
       <div style={{display:"flex", gap:20, flexWrap:"wrap"}}>
         <div className="card" style={{flex:1, minWidth:280}}>
-          <h2>Gasto por categoria — {mesLabel(mesFiltro)}</h2>
+          <h2>Gasto por categoria</h2>
           {dadosCategoria.length===0 && <div className="empty-state">Nenhuma despesa neste mês ainda.</div>}
           {dadosCategoria.length>0 && (
             <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:14}}>
@@ -1218,7 +1321,7 @@ function Dashboard({data}){
         </div>
 
         <div className="card" style={{flex:1, minWidth:280}}>
-          <h2>Gasto no cartão por pessoa — {mesLabel(mesFiltro)}</h2>
+          <h2>Gasto no cartão por pessoa</h2>
           {dadosPessoa.length===0 && <div className="empty-state">Nenhuma compra de cartão neste mês.</div>}
           {dadosPessoa.length>0 && (
             <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:14}}>
@@ -1241,7 +1344,7 @@ function Dashboard({data}){
         </div>
 
         <div className="card" style={{flex:1, minWidth:280}}>
-          <h2>Despesas por status — {mesLabel(mesFiltro)}</h2>
+          <h2>Despesas por status</h2>
           {dadosStatus.length===0 && <div className="empty-state">Nenhuma despesa com vencimento/status neste mês.</div>}
           {dadosStatus.length>0 && (
             <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:14}}>
