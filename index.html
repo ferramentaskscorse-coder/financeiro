@@ -393,6 +393,7 @@ function DonutChart({data, size=150}){
           const dash = fracao * circumference;
           const offset = -acumulado * circumference;
           acumulado += fracao;
+          const percentual = (fracao*100).toFixed(1);
           return (
             <circle
               key={i}
@@ -402,7 +403,10 @@ function DonutChart({data, size=150}){
               strokeWidth={stroke}
               strokeDasharray={`${dash} ${circumference - dash}`}
               strokeDashoffset={offset}
-            />
+              style={{cursor:"pointer"}}
+            >
+              <title>{`${d.label}: ${fmtMoney(d.value)} (${percentual}%)`}</title>
+            </circle>
           );
         })}
       </g>
@@ -929,7 +933,21 @@ function Cartao({data, updateData}){
       )}
 
       <div className="card">
-        <h2>Compras registradas</h2>
+        <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4}}>
+          <h2 style={{marginBottom:0}}>Compras registradas</h2>
+          {comprasOrdenadas.length>0 && (
+            <button
+              className="btn-danger"
+              onClick={()=>{
+                if(window.confirm(`Isso vai apagar TODAS as ${data.comprasCartao.length} linhas de cartão importadas (todas as faturas, todos os meses). Não dá pra desfazer. Confirma?`)){
+                  updateData({ ...data, comprasCartao: [] });
+                }
+              }}
+            >
+              Limpar tudo
+            </button>
+          )}
+        </div>
         {comprasOrdenadas.length===0 && <div className="empty-state">Nenhuma compra de cartão importada ainda.</div>}
         {comprasOrdenadas.map(c=>(
           <div className="ledger-row" key={c.id}>
@@ -944,7 +962,12 @@ function Cartao({data, updateData}){
               {(-c.valor_parcela)>=0 ? "+" : ""}{fmtMoney(-c.valor_parcela)}
             </span>
             <span></span>
-            <span></span>
+            <button
+              className="btn-danger"
+              onClick={()=>updateData({ ...data, comprasCartao: data.comprasCartao.filter(x=>x.id!==c.id) })}
+            >
+              Remover
+            </button>
           </div>
         ))}
       </div>
@@ -1031,7 +1054,7 @@ function Dashboard({data}){
               <DonutChart data={dadosCategoria} />
               <div style={{display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center"}}>
                 {dadosCategoria.map(d=>(
-                  <span key={d.label} style={{display:"flex",alignItems:"center",gap:6,fontSize:13}}>
+                  <span key={d.label} title={fmtMoney(d.value)} style={{display:"flex",alignItems:"center",gap:6,fontSize:13,cursor:"default"}}>
                     <span style={{width:10,height:10,borderRadius:3,background:d.color,display:"inline-block"}}></span>
                     {d.label}
                   </span>
@@ -1049,7 +1072,7 @@ function Dashboard({data}){
               <DonutChart data={dadosPessoa} />
               <div style={{display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center"}}>
                 {dadosPessoa.map(d=>(
-                  <span key={d.label} style={{display:"flex",alignItems:"center",gap:6,fontSize:13}}>
+                  <span key={d.label} title={fmtMoney(d.value)} style={{display:"flex",alignItems:"center",gap:6,fontSize:13,cursor:"default"}}>
                     <span style={{width:10,height:10,borderRadius:3,background:d.color,display:"inline-block"}}></span>
                     {d.label}
                   </span>
