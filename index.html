@@ -376,7 +376,8 @@ const PALETA_CORES = ["#BE4D00","#C9A84C","#7A2E1D","#4f2c1d","#8a7350","#a86a3d
 
 // Gráfico de rosca em SVG puro (sem dependência externa), recebe [{label, value}]
 function DonutChart({data, size=150}){
-  const total = data.reduce((s,d)=>s+d.value,0);
+  const dadosValidos = data.filter(d => d.value > 0);
+  const total = dadosValidos.reduce((s,d)=>s+d.value,0);
   const radius = 52;
   const stroke = 22;
   const circumference = 2 * Math.PI * radius;
@@ -388,7 +389,7 @@ function DonutChart({data, size=150}){
         {total === 0 && (
           <circle r={radius} fill="none" stroke="var(--paper-line)" strokeWidth={stroke} />
         )}
-        {total > 0 && data.map((d, i) => {
+        {total > 0 && dadosValidos.map((d, i) => {
           const fracao = d.value / total;
           const dash = fracao * circumference;
           const offset = -acumulado * circumference;
@@ -1070,14 +1071,16 @@ function Dashboard({data}){
   const despesasTotal = despesasDiretas + despesaCartao;
   const saldo = receitas - despesasTotal;
 
-  // Gasto por pessoa (cartão)
+  // Gasto por pessoa (cartão) — só considera compras de verdade (valor positivo);
+  // créditos/estornos não são "gasto de alguém", então ficam de fora daqui.
   const porPessoa = {};
-  comprasMes.forEach(c=>{
+  comprasMes.filter(c=>c.valor_parcela > 0).forEach(c=>{
     porPessoa[c.responsavel] = (porPessoa[c.responsavel]||0) + c.valor_parcela;
   });
   const dadosPessoa = Object.entries(porPessoa)
     .sort((a,b)=>b[1]-a[1])
     .map(([label,value],i)=>({ label, value, color: PALETA_CORES[i % PALETA_CORES.length] }));
+  const creditosMes = comprasMes.filter(c=>c.valor_parcela < 0).reduce((s,c)=>s+c.valor_parcela,0);
 
   // Gasto por categoria (despesas diretas + cartão, mês atual)
   const porCategoria = {};
@@ -1161,6 +1164,11 @@ function Dashboard({data}){
                 ))}
               </div>
             </div>
+          )}
+          {creditosMes < 0 && (
+            <p className="helper" style={{marginTop:14, color:"#3B6D11"}}>
+              + créditos/estornos aplicados este mês: {fmtMoney(-creditosMes)} (não atribuídos a uma pessoa)
+            </p>
           )}
         </div>
       </div>
