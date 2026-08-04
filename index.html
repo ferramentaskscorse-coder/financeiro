@@ -327,6 +327,17 @@ const MESES = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov"
 // Não é editável pela interface, de propósito (evita categoria duplicada/escrita diferente).
 const CATEGORIAS = ["Taxi", "Alimentação", "Moradia", "Outros"];
 
+// Agrupa descrições parecidas sob um nome único no relatório "Gasto por estabelecimento".
+// Pra adicionar uma regra nova, edite aqui e faça o deploy de novo.
+const APELIDOS_ESTABELECIMENTO = [
+  { termos: ["99*", "99app", "uber"], nome: "Táxi" },
+];
+function normalizarEstabelecimento(descricao){
+  const desc = (descricao || "").toLowerCase();
+  const regra = APELIDOS_ESTABELECIMENTO.find(r => r.termos.some(t => desc.includes(t.toLowerCase())));
+  return regra ? regra.nome : (descricao || "Sem descrição").trim();
+}
+
 // COLE AQUI as URLs que aparecem no terminal depois do "firebase deploy --only functions"
 // Elas vão ter o formato: https://southamerica-east1-SEU-PROJETO.cloudfunctions.net/parseFatura
 const URL_PARSE_FATURA = "https://southamerica-east1-finance-c20f5.cloudfunctions.net/parseFatura";
@@ -995,6 +1006,7 @@ function Cartao({data, updateData}){
   const [mesPagamentoFatura, setMesPagamentoFatura] = useState(mesRefAtual());
   const [editandoId, setEditandoId] = useState(null);
   const [edicaoTemp, setEdicaoTemp] = useState(null);
+  const [mesFiltroGastos, setMesFiltroGastos] = useState(mesRefAtual());
   const fileRef = useRef(null);
 
   function iniciarEdicao(c){
@@ -1099,6 +1111,21 @@ function Cartao({data, updateData}){
 
   const comprasOrdenadas = [...data.comprasCartao].sort((a,b)=> b.mes_referencia.localeCompare(a.mes_referencia));
 
+  // Gasto por estabelecimento (descrição), só compras de verdade, no mês filtrado
+  const porEstabelecimento = {};
+  data.comprasCartao
+    .filter(c => c.mes_referencia === mesFiltroGastos && c.valor_parcela > 0)
+    .forEach(c => {
+      const chave = normalizarEstabelecimento(c.descricao);
+      if(!porEstabelecimento[chave]) porEstabelecimento[chave] = { total: 0, qtd: 0 };
+      porEstabelecimento[chave].total += c.valor_parcela;
+      porEstabelecimento[chave].qtd += 1;
+    });
+  const gastosPorEstabelecimento = Object.entries(porEstabelecimento)
+    .map(([descricao, v]) => ({ descricao, total: v.total, qtd: v.qtd }))
+    .sort((a,b) => b.total - a.total);
+  const totalEstabelecimentos = gastosPorEstabelecimento.reduce((s,e)=>s+e.total,0);
+
   return (
     <div>
       <h1>Cartão de crédito</h1>
@@ -1149,6 +1176,31 @@ function Cartao({data, updateData}){
           </div>
         </div>
       )}
+
+      <div className="card">
+        <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4}}>
+          <h2 style={{marginBottom:0}}>Gasto por estabelecimento</h2>
+          <div>
+            <label>Ver mês</label>
+            <input type="month" value={mesFiltroGastos} onChange={e=>setMesFiltroGastos(e.target.value)} />
+          </div>
+        </div>
+        <p className="helper" style={{marginBottom:14}}>Total gasto com cada descrição de compra (ex: Uber, Padaria) no mês selecionado.</p>
+        {gastosPorEstabelecimento.length===0 && <div className="empty-state">Nenhuma compra nesse mês.</div>}
+        {gastosPorEstabelecimento.map(e=>(
+          <div className="ledger-row" key={e.descricao} style={{gridTemplateColumns:"1fr auto auto"}}>
+            <span style={{fontWeight:500}}>{e.descricao}</span>
+            <span style={{fontSize:12, color:"var(--ink-soft)"}}>{e.qtd}x</span>
+            <span className="money neg">{fmtMoney(e.total)}</span>
+          </div>
+        ))}
+        {gastosPorEstabelecimento.length>0 && (
+          <div className="ledger-row" style={{gridTemplateColumns:"1fr auto", borderTop:"1px solid var(--paper-line)", marginTop:4, paddingTop:12}}>
+            <span style={{fontWeight:600}}>Total do mês</span>
+            <span className="money neg" style={{fontWeight:600}}>{fmtMoney(totalEstabelecimentos)}</span>
+          </div>
+        )}
+      </div>
 
       <div className="card">
         <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4}}>
