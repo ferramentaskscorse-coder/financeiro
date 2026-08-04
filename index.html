@@ -1007,6 +1007,7 @@ function Cartao({data, updateData}){
   const [editandoId, setEditandoId] = useState(null);
   const [edicaoTemp, setEdicaoTemp] = useState(null);
   const [mesFiltroGastos, setMesFiltroGastos] = useState(mesRefAtual());
+  const [mensagemReconciliacao, setMensagemReconciliacao] = useState(null);
   const fileRef = useRef(null);
 
   function iniciarEdicao(c){
@@ -1084,15 +1085,47 @@ function Cartao({data, updateData}){
     setReviewItems(items => items.filter(it => it.id!==id));
   }
 
+  function normalizarTexto(s){
+    return (s||"").toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+  }
+
   function confirmarImportacao(){
     const novasCompras = [];
+    const atualizacoes = [];
     const origemBase = uid();
+    let reconciliadas = 0;
+
     reviewItems.forEach(item => {
+      const mesDestaParcela = mesPagamentoFatura;
+
+      // Essa parcela específica (mesma descrição + número da parcela + mês) já existe?
+      // Se sim, foi provisionada numa importação anterior — atualiza em vez de duplicar.
+      const existente = data.comprasCartao.find(c =>
+        normalizarTexto(c.descricao) === normalizarTexto(item.descricao) &&
+        c.parcela_atual === item.parcela_atual &&
+        c.parcela_total === item.parcela_total &&
+        c.mes_referencia === mesDestaParcela
+      );
+
+      if(existente){
+        reconciliadas++;
+        atualizacoes.push({
+          id: existente.id,
+          valor_parcela: parseFloat(item.valor_parcela),
+          responsavel: item.responsavel || existente.responsavel,
+          categoria: item.categoria || existente.categoria,
+        });
+        return; // não gera parcelas futuras de novo — já foram criadas na importação anterior
+      }
+
+      // Não existia: é uma compra nova (ou a fatura ainda não tinha sido importada antes).
+      // Gera essa parcela e todas as futuras normalmente.
       const restantes = Math.max(1, item.parcela_total - item.parcela_atual + 1);
+      const origemId = origemBase + "-" + item.id;
       for(let i=0; i<restantes; i++){
         novasCompras.push({
           id: uid(),
-          compra_origem_id: origemBase + "-" + item.id,
+          compra_origem_id: origemId,
           descricao: item.descricao,
           valor_parcela: parseFloat(item.valor_parcela),
           parcela_atual: item.parcela_atual + i,
@@ -1103,10 +1136,19 @@ function Cartao({data, updateData}){
         });
       }
     });
-    updateData({ ...data, comprasCartao: [...novasCompras, ...data.comprasCartao] });
+
+    const comprasAtualizadas = data.comprasCartao.map(c => {
+      const upd = atualizacoes.find(a => a.id === c.id);
+      return upd ? { ...c, valor_parcela: upd.valor_parcela, responsavel: upd.responsavel, categoria: upd.categoria } : c;
+    });
+
+    updateData({ ...data, comprasCartao: [...novasCompras, ...comprasAtualizadas] });
     setReviewItems(null);
     setImageBase64(null);
     if(fileRef.current) fileRef.current.value = "";
+    if(reconciliadas > 0){
+      setMensagemReconciliacao(`${reconciliadas} ${reconciliadas===1 ? "item já estava" : "itens já estavam"} provisionado(s) de uma importação anterior — foram atualizados, não duplicados.`);
+    }
   }
 
   const comprasOrdenadas = [...data.comprasCartao].sort((a,b)=> b.mes_referencia.localeCompare(a.mes_referencia));
@@ -1130,6 +1172,12 @@ function Cartao({data, updateData}){
     <div>
       <h1>Cartão de crédito</h1>
       <p className="subtitle">Suba o print ou o PDF da fatura. O sistema lê as compras, projeta as parcelas futuras e deixa você marcar quem fez cada compra.</p>
+      {mensagemReconciliacao && (
+        <div style={{background:"var(--gold-soft)", border:"1px solid var(--gold)", color:"#6b5216", borderRadius:8, padding:"10px 14px", fontSize:13, marginBottom:16}}>
+          {mensagemReconciliacao}
+          <button className="btn-ghost" style={{marginLeft:12, padding:"3px 10px", fontSize:12}} onClick={()=>setMensagemReconciliacao(null)}>Ok</button>
+        </div>
+      )}
 
       {!reviewItems && (
         <div className="card">
