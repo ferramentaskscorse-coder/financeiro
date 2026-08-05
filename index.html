@@ -1596,26 +1596,13 @@ function Dashboard({data}){
         </div>
       )}
 
-      <div style={{display:"flex", gap:20, flexWrap:"wrap"}}>
-        <div className="card" style={{flex:1, minWidth:280}}>
-          <h2 style={{textAlign:"center"}}>Gasto por categoria</h2>
+      <div style={{display:"flex", gap:16, flexWrap:"wrap"}}>
+        <div className="card" style={{flex:1, minWidth:220}}>
+          <h2 style={{textAlign:"center", fontSize:15}}>Gasto por categoria</h2>
           {dadosCategoria.length===0 && <div className="empty-state">Nenhuma despesa neste mês ainda.</div>}
           {dadosCategoria.length>0 && (
-            <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:14}}>
-              <DonutChart data={dadosCategoria} selecionado={detalheCategoria} onSliceClick={(label)=>setDetalheCategoria(detalheCategoria===label ? null : label)} />
-              <div style={{display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center"}}>
-                {dadosCategoria.map(d=>(
-                  <span
-                    key={d.label}
-                    title={fmtMoney(d.value)}
-                    onClick={()=>setDetalheCategoria(detalheCategoria===d.label ? null : d.label)}
-                    style={{display:"flex",alignItems:"center",gap:6,fontSize:13,cursor:"pointer",fontWeight:detalheCategoria===d.label?600:400,textDecoration:detalheCategoria===d.label?"underline":"none"}}
-                  >
-                    <span style={{width:10,height:10,borderRadius:3,background:d.color,display:"inline-block"}}></span>
-                    {d.label}
-                  </span>
-                ))}
-              </div>
+            <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:10}}>
+              <DonutChart data={dadosCategoria} size={115} selecionado={detalheCategoria} onSliceClick={(label)=>setDetalheCategoria(detalheCategoria===label ? null : label)} />
               {detalheCategoria && (itensPorCategoria[detalheCategoria]||[]).length>0 && (
                 <div style={{width:"100%", marginTop:6, paddingTop:12, borderTop:"1px dashed var(--paper-line)"}}>
                   <p className="helper" style={{marginTop:0, marginBottom:8}}>Compõem "{detalheCategoria}":</p>
@@ -1631,25 +1618,12 @@ function Dashboard({data}){
           )}
         </div>
 
-        <div className="card" style={{flex:1, minWidth:280}}>
-          <h2 style={{textAlign:"center"}}>Gasto no cartão por pessoa</h2>
+        <div className="card" style={{flex:1, minWidth:220}}>
+          <h2 style={{textAlign:"center", fontSize:15}}>Gasto no cartão por pessoa</h2>
           {dadosPessoa.length===0 && <div className="empty-state">Nenhuma compra de cartão neste mês.</div>}
           {dadosPessoa.length>0 && (
-            <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:14}}>
-              <DonutChart data={dadosPessoa} selecionado={detalhePessoa} onSliceClick={(label)=>setDetalhePessoa(detalhePessoa===label ? null : label)} />
-              <div style={{display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center"}}>
-                {dadosPessoa.map(d=>(
-                  <span
-                    key={d.label}
-                    title={fmtMoney(d.value)}
-                    onClick={()=>setDetalhePessoa(detalhePessoa===d.label ? null : d.label)}
-                    style={{display:"flex",alignItems:"center",gap:6,fontSize:13,cursor:"pointer",fontWeight:detalhePessoa===d.label?600:400,textDecoration:detalhePessoa===d.label?"underline":"none"}}
-                  >
-                    <span style={{width:10,height:10,borderRadius:3,background:d.color,display:"inline-block"}}></span>
-                    {d.label}
-                  </span>
-                ))}
-              </div>
+            <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:10}}>
+              <DonutChart data={dadosPessoa} size={115} selecionado={detalhePessoa} onSliceClick={(label)=>setDetalhePessoa(detalhePessoa===label ? null : label)} />
               {detalhePessoa && (itensPorPessoa[detalhePessoa]||[]).length>0 && (
                 <div style={{width:"100%", marginTop:6, paddingTop:12, borderTop:"1px dashed var(--paper-line)"}}>
                   <p className="helper" style={{marginTop:0, marginBottom:8}}>Compras de "{detalhePessoa}":</p>
@@ -1664,31 +1638,18 @@ function Dashboard({data}){
             </div>
           )}
           {creditosMes < 0 && (
-            <p className="helper" style={{marginTop:14, color:"#3B6D11"}}>
-              + créditos/estornos aplicados este mês: {fmtMoney(-creditosMes)} (não atribuídos a uma pessoa)
+            <p className="helper" style={{marginTop:14, color:"#3B6D11", fontSize:12}}>
+              + créditos: {fmtMoney(-creditosMes)}
             </p>
           )}
         </div>
 
-        <div className="card" style={{flex:1, minWidth:280}}>
-          <h2 style={{textAlign:"center"}}>Despesas por status</h2>
+        <div className="card" style={{flex:1, minWidth:220}}>
+          <h2 style={{textAlign:"center", fontSize:15}}>Despesas por status</h2>
           {dadosStatus.length===0 && <div className="empty-state">Nenhuma despesa com vencimento/status neste mês.</div>}
           {dadosStatus.length>0 && (
-            <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:14}}>
-              <DonutChart data={dadosStatus} selecionado={detalheStatus} onSliceClick={(label)=>setDetalheStatus(detalheStatus===label ? null : label)} />
-              <div style={{display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center"}}>
-                {dadosStatus.map(d=>(
-                  <span
-                    key={d.label}
-                    title={fmtMoney(d.value)}
-                    onClick={()=>setDetalheStatus(detalheStatus===d.label ? null : d.label)}
-                    style={{display:"flex",alignItems:"center",gap:6,fontSize:13,cursor:"pointer",fontWeight:detalheStatus===d.label?600:400,textDecoration:detalheStatus===d.label?"underline":"none"}}
-                  >
-                    <span style={{width:10,height:10,borderRadius:3,background:d.color,display:"inline-block"}}></span>
-                    {d.label}
-                  </span>
-                ))}
-              </div>
+            <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:10}}>
+              <DonutChart data={dadosStatus} size={115} selecionado={detalheStatus} onSliceClick={(label)=>setDetalheStatus(detalheStatus===label ? null : label)} />
               {detalheStatus && (itensPorStatus[detalheStatus]||[]).length>0 && (
                 <div style={{width:"100%", marginTop:6, paddingTop:12, borderTop:"1px dashed var(--paper-line)"}}>
                   <p className="helper" style={{marginTop:0, marginBottom:8}}>Despesas "{detalheStatus}":</p>
@@ -1702,30 +1663,14 @@ function Dashboard({data}){
               )}
             </div>
           )}
-          <p className="helper" style={{marginTop:14}}>Só considera despesas com vencimento e/ou status marcados no lançamento.</p>
         </div>
-      </div>
 
-      <div style={{display:"flex", gap:20, flexWrap:"wrap"}}>
-        <div className="card" style={{flex:1, minWidth:280, maxWidth:"calc(33.33% - 14px)"}}>
-          <h2 style={{textAlign:"center"}}>Receita por descrição</h2>
+        <div className="card" style={{flex:1, minWidth:220}}>
+          <h2 style={{textAlign:"center", fontSize:15}}>Receita por descrição</h2>
           {dadosReceita.length===0 && <div className="empty-state">Nenhuma receita neste mês ainda.</div>}
           {dadosReceita.length>0 && (
-            <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:14}}>
-              <DonutChart data={dadosReceita} selecionado={detalheReceita} onSliceClick={(label)=>setDetalheReceita(detalheReceita===label ? null : label)} />
-              <div style={{display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center"}}>
-                {dadosReceita.map(d=>(
-                  <span
-                    key={d.label}
-                    title={fmtMoney(d.value)}
-                    onClick={()=>setDetalheReceita(detalheReceita===d.label ? null : d.label)}
-                    style={{display:"flex",alignItems:"center",gap:6,fontSize:13,cursor:"pointer",fontWeight:detalheReceita===d.label?600:400,textDecoration:detalheReceita===d.label?"underline":"none"}}
-                  >
-                    <span style={{width:10,height:10,borderRadius:3,background:d.color,display:"inline-block"}}></span>
-                    {d.label}
-                  </span>
-                ))}
-              </div>
+            <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:10}}>
+              <DonutChart data={dadosReceita} size={115} selecionado={detalheReceita} onSliceClick={(label)=>setDetalheReceita(detalheReceita===label ? null : label)} />
               {detalheReceita && (itensPorReceita[detalheReceita]||[]).length>0 && (
                 <div style={{width:"100%", marginTop:6, paddingTop:12, borderTop:"1px dashed var(--paper-line)"}}>
                   <p className="helper" style={{marginTop:0, marginBottom:8}}>Lançamentos de "{detalheReceita}":</p>
@@ -1741,6 +1686,7 @@ function Dashboard({data}){
           )}
         </div>
       </div>
+      <p className="helper" style={{marginTop:-6, marginBottom:20}}>Passe o mouse numa fatia pra ver o nome e o valor. Clique pra ver o detalhamento.</p>
 
       <div className="card">
         <h2>Previsão de despesa do cartão — próximos meses</h2>
