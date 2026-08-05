@@ -325,7 +325,7 @@ const MESES = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov"
 
 // Lista fixa de categorias — pra adicionar uma nova, edite aqui e faça o deploy de novo.
 // Não é editável pela interface, de propósito (evita categoria duplicada/escrita diferente).
-const CATEGORIAS = ["Taxi", "Alimentação", "Moradia", "Outros"];
+const CATEGORIAS = ["Taxi", "Alimentação", "Moradia", "Salário", "Outros"];
 const FORMAS_PAGAMENTO = ["Pix", "Débito", "Crédito", "Dinheiro"];
 
 // Agrupa descrições parecidas sob um nome único no relatório "Gasto por estabelecimento".
@@ -1429,6 +1429,10 @@ function Cartao({data, updateData}){
 function Dashboard({data}){
   const [mesFiltro, setMesFiltro] = useState(mesRefAtual());
   const [mesDetalhe, setMesDetalhe] = useState(null);
+  const [detalheCategoria, setDetalheCategoria] = useState(null);
+  const [detalhePessoa, setDetalhePessoa] = useState(null);
+  const [detalheStatus, setDetalheStatus] = useState(null);
+  const [detalheReceita, setDetalheReceita] = useState(null);
   const lancamentosMes = data.lancamentos.filter(l=>l.mes_referencia===mesFiltro);
   const comprasMes = data.comprasCartao.filter(c=>c.mes_referencia===mesFiltro);
 
@@ -1441,8 +1445,11 @@ function Dashboard({data}){
   // Gasto por pessoa (cartão) — só considera compras de verdade (valor positivo);
   // créditos/estornos não são "gasto de alguém", então ficam de fora daqui.
   const porPessoa = {};
+  const itensPorPessoa = {};
   comprasMes.filter(c=>c.valor_parcela > 0).forEach(c=>{
     porPessoa[c.responsavel] = (porPessoa[c.responsavel]||0) + c.valor_parcela;
+    if(!itensPorPessoa[c.responsavel]) itensPorPessoa[c.responsavel] = [];
+    itensPorPessoa[c.responsavel].push(c);
   });
   const dadosPessoa = Object.entries(porPessoa)
     .sort((a,b)=>b[1]-a[1])
@@ -1451,11 +1458,17 @@ function Dashboard({data}){
 
   // Gasto por categoria (despesas diretas + cartão, mês atual)
   const porCategoria = {};
+  const itensPorCategoria = {};
   lancamentosMes.filter(l=>l.tipo==="despesa").forEach(l=>{
-    porCategoria[l.categoria||"Outros"] = (porCategoria[l.categoria||"Outros"]||0) + l.valor;
+    const cat = l.categoria||"Outros";
+    porCategoria[cat] = (porCategoria[cat]||0) + l.valor;
+    if(!itensPorCategoria[cat]) itensPorCategoria[cat] = [];
+    itensPorCategoria[cat].push({ tipo:"lancamento", descricao:l.descricao, valor:l.valor, extra: l.forma_pagamento });
   });
   comprasMes.forEach(c=>{
     porCategoria["Cartão de crédito"] = (porCategoria["Cartão de crédito"]||0) + c.valor_parcela;
+    if(!itensPorCategoria["Cartão de crédito"]) itensPorCategoria["Cartão de crédito"] = [];
+    itensPorCategoria["Cartão de crédito"].push({ tipo:"cartao", descricao:c.descricao, valor:c.valor_parcela, extra: c.responsavel });
   });
   const dadosCategoria = Object.entries(porCategoria)
     .sort((a,b)=>b[1]-a[1])
@@ -1464,13 +1477,29 @@ function Dashboard({data}){
   // Despesas por status (Pago / A pagar / Vencido) — só lançamentos diretos com vencimento/status
   const CORES_STATUS = { "Pago": "#3B6D11", "A pagar": "#C9A84C", "Vencido": "#7A2E1D" };
   const porStatus = {};
+  const itensPorStatus = {};
   lancamentosMes.filter(l=>l.tipo==="despesa").forEach(l=>{
     const st = statusDespesa(l);
     porStatus[st] = (porStatus[st]||0) + l.valor;
+    if(!itensPorStatus[st]) itensPorStatus[st] = [];
+    itensPorStatus[st].push(l);
   });
   const dadosStatus = ["Pago","A pagar","Vencido"]
     .filter(st => porStatus[st] > 0)
     .map(st => ({ label: st, value: porStatus[st], color: CORES_STATUS[st] }));
+
+  // Receita por descrição (mês filtrado)
+  const porReceita = {};
+  const itensPorReceita = {};
+  lancamentosMes.filter(l=>l.tipo==="receita").forEach(l=>{
+    const chave = l.descricao || "Sem descrição";
+    porReceita[chave] = (porReceita[chave]||0) + l.valor;
+    if(!itensPorReceita[chave]) itensPorReceita[chave] = [];
+    itensPorReceita[chave].push(l);
+  });
+  const dadosReceita = Object.entries(porReceita)
+    .sort((a,b)=>b[1]-a[1])
+    .map(([label,value],i)=>({ label, value, color: PALETA_CORES[i % PALETA_CORES.length] }));
 
   // Previsão de despesa do cartão — olha os próximos 6 meses
   const todosProximosMeses = [1,2,3,4,5,6].map(offset=>{
@@ -1517,12 +1546,28 @@ function Dashboard({data}){
               <DonutChart data={dadosCategoria} />
               <div style={{display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center"}}>
                 {dadosCategoria.map(d=>(
-                  <span key={d.label} title={fmtMoney(d.value)} style={{display:"flex",alignItems:"center",gap:6,fontSize:13,cursor:"default"}}>
+                  <span
+                    key={d.label}
+                    title={fmtMoney(d.value)}
+                    onClick={()=>setDetalheCategoria(detalheCategoria===d.label ? null : d.label)}
+                    style={{display:"flex",alignItems:"center",gap:6,fontSize:13,cursor:"pointer",fontWeight:detalheCategoria===d.label?600:400,textDecoration:detalheCategoria===d.label?"underline":"none"}}
+                  >
                     <span style={{width:10,height:10,borderRadius:3,background:d.color,display:"inline-block"}}></span>
                     {d.label}
                   </span>
                 ))}
               </div>
+              {detalheCategoria && (itensPorCategoria[detalheCategoria]||[]).length>0 && (
+                <div style={{width:"100%", marginTop:6, paddingTop:12, borderTop:"1px dashed var(--paper-line)"}}>
+                  <p className="helper" style={{marginTop:0, marginBottom:8}}>Compõem "{detalheCategoria}":</p>
+                  {itensPorCategoria[detalheCategoria].map((it,i)=>(
+                    <div className="ledger-row" key={i} style={{gridTemplateColumns:"1fr auto"}}>
+                      <span style={{fontSize:13}}>{it.descricao}{it.extra ? ` · ${it.extra}` : ""}</span>
+                      <span className="money neg" style={{fontSize:13}}>{fmtMoney(it.valor)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1535,12 +1580,28 @@ function Dashboard({data}){
               <DonutChart data={dadosPessoa} />
               <div style={{display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center"}}>
                 {dadosPessoa.map(d=>(
-                  <span key={d.label} title={fmtMoney(d.value)} style={{display:"flex",alignItems:"center",gap:6,fontSize:13,cursor:"default"}}>
+                  <span
+                    key={d.label}
+                    title={fmtMoney(d.value)}
+                    onClick={()=>setDetalhePessoa(detalhePessoa===d.label ? null : d.label)}
+                    style={{display:"flex",alignItems:"center",gap:6,fontSize:13,cursor:"pointer",fontWeight:detalhePessoa===d.label?600:400,textDecoration:detalhePessoa===d.label?"underline":"none"}}
+                  >
                     <span style={{width:10,height:10,borderRadius:3,background:d.color,display:"inline-block"}}></span>
                     {d.label}
                   </span>
                 ))}
               </div>
+              {detalhePessoa && (itensPorPessoa[detalhePessoa]||[]).length>0 && (
+                <div style={{width:"100%", marginTop:6, paddingTop:12, borderTop:"1px dashed var(--paper-line)"}}>
+                  <p className="helper" style={{marginTop:0, marginBottom:8}}>Compras de "{detalhePessoa}":</p>
+                  {itensPorPessoa[detalhePessoa].map((c,i)=>(
+                    <div className="ledger-row" key={i} style={{gridTemplateColumns:"1fr auto"}}>
+                      <span style={{fontSize:13}}>{c.descricao} · parcela {c.parcela_atual}/{c.parcela_total}</span>
+                      <span className="money neg" style={{fontSize:13}}>{fmtMoney(c.valor_parcela)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {creditosMes < 0 && (
@@ -1558,15 +1619,67 @@ function Dashboard({data}){
               <DonutChart data={dadosStatus} />
               <div style={{display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center"}}>
                 {dadosStatus.map(d=>(
-                  <span key={d.label} title={fmtMoney(d.value)} style={{display:"flex",alignItems:"center",gap:6,fontSize:13,cursor:"default"}}>
+                  <span
+                    key={d.label}
+                    title={fmtMoney(d.value)}
+                    onClick={()=>setDetalheStatus(detalheStatus===d.label ? null : d.label)}
+                    style={{display:"flex",alignItems:"center",gap:6,fontSize:13,cursor:"pointer",fontWeight:detalheStatus===d.label?600:400,textDecoration:detalheStatus===d.label?"underline":"none"}}
+                  >
                     <span style={{width:10,height:10,borderRadius:3,background:d.color,display:"inline-block"}}></span>
                     {d.label}
                   </span>
                 ))}
               </div>
+              {detalheStatus && (itensPorStatus[detalheStatus]||[]).length>0 && (
+                <div style={{width:"100%", marginTop:6, paddingTop:12, borderTop:"1px dashed var(--paper-line)"}}>
+                  <p className="helper" style={{marginTop:0, marginBottom:8}}>Despesas "{detalheStatus}":</p>
+                  {itensPorStatus[detalheStatus].map((l,i)=>(
+                    <div className="ledger-row" key={i} style={{gridTemplateColumns:"1fr auto"}}>
+                      <span style={{fontSize:13}}>{l.descricao} · {l.categoria}</span>
+                      <span className="money neg" style={{fontSize:13}}>{fmtMoney(l.valor)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           <p className="helper" style={{marginTop:14}}>Só considera despesas com vencimento e/ou status marcados no lançamento.</p>
+        </div>
+      </div>
+
+      <div style={{display:"flex", gap:20, flexWrap:"wrap"}}>
+        <div className="card" style={{flex:1, minWidth:280, maxWidth:"calc(33.33% - 14px)"}}>
+          <h2>Receita por descrição</h2>
+          {dadosReceita.length===0 && <div className="empty-state">Nenhuma receita neste mês ainda.</div>}
+          {dadosReceita.length>0 && (
+            <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:14}}>
+              <DonutChart data={dadosReceita} />
+              <div style={{display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center"}}>
+                {dadosReceita.map(d=>(
+                  <span
+                    key={d.label}
+                    title={fmtMoney(d.value)}
+                    onClick={()=>setDetalheReceita(detalheReceita===d.label ? null : d.label)}
+                    style={{display:"flex",alignItems:"center",gap:6,fontSize:13,cursor:"pointer",fontWeight:detalheReceita===d.label?600:400,textDecoration:detalheReceita===d.label?"underline":"none"}}
+                  >
+                    <span style={{width:10,height:10,borderRadius:3,background:d.color,display:"inline-block"}}></span>
+                    {d.label}
+                  </span>
+                ))}
+              </div>
+              {detalheReceita && (itensPorReceita[detalheReceita]||[]).length>0 && (
+                <div style={{width:"100%", marginTop:6, paddingTop:12, borderTop:"1px dashed var(--paper-line)"}}>
+                  <p className="helper" style={{marginTop:0, marginBottom:8}}>Lançamentos de "{detalheReceita}":</p>
+                  {itensPorReceita[detalheReceita].map((l,i)=>(
+                    <div className="ledger-row" key={i} style={{gridTemplateColumns:"1fr auto"}}>
+                      <span style={{fontSize:13}}>{l.categoria}{l.forma_pagamento ? ` · ${l.forma_pagamento}` : ""}</span>
+                      <span className="money pos" style={{fontSize:13}}>+{fmtMoney(l.valor)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
