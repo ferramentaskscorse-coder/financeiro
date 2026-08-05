@@ -390,7 +390,7 @@ function uid(){ return Math.random().toString(36).slice(2,10); }
 const PALETA_CORES = ["#BE4D00","#C9A84C","#7A2E1D","#4f2c1d","#8a7350","#a86a3d"];
 
 // Gráfico de rosca em SVG puro (sem dependência externa), recebe [{label, value}]
-function DonutChart({data, size=150}){
+function DonutChart({data, size=150, onSliceClick, selecionado}){
   const dadosValidos = data.filter(d => d.value > 0);
   const total = dadosValidos.reduce((s,d)=>s+d.value,0);
   const radius = 52;
@@ -410,16 +410,18 @@ function DonutChart({data, size=150}){
           const offset = -acumulado * circumference;
           acumulado += fracao;
           const percentual = (fracao*100).toFixed(1);
+          const ativo = selecionado === d.label;
           return (
             <circle
               key={i}
               r={radius}
               fill="none"
               stroke={d.color || PALETA_CORES[i % PALETA_CORES.length]}
-              strokeWidth={stroke}
+              strokeWidth={ativo ? stroke+6 : stroke}
               strokeDasharray={`${dash} ${circumference - dash}`}
               strokeDashoffset={offset}
-              style={{cursor:"pointer"}}
+              style={{cursor: onSliceClick ? "pointer" : "default", transition:"stroke-width .15s"}}
+              onClick={()=> onSliceClick && onSliceClick(d.label)}
             >
               <title>{`${d.label}: ${fmtMoney(d.value)} (${percentual}%)`}</title>
             </circle>
@@ -1429,6 +1431,9 @@ function Cartao({data, updateData}){
 function Dashboard({data}){
   const [mesFiltro, setMesFiltro] = useState(mesRefAtual());
   const [mesDetalhe, setMesDetalhe] = useState(null);
+  const [detalheCategoria, setDetalheCategoria] = useState(null);
+  const [detalhePessoa, setDetalhePessoa] = useState(null);
+  const [detalheStatus, setDetalheStatus] = useState(null);
   const [detalheReceita, setDetalheReceita] = useState(null);
   const lancamentosMes = data.lancamentos.filter(l=>l.mes_referencia===mesFiltro);
   const comprasMes = data.comprasCartao.filter(c=>c.mes_referencia===mesFiltro);
@@ -1597,15 +1602,31 @@ function Dashboard({data}){
           {dadosCategoria.length===0 && <div className="empty-state">Nenhuma despesa neste mês ainda.</div>}
           {dadosCategoria.length>0 && (
             <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:14}}>
-              <DonutChart data={dadosCategoria} />
+              <DonutChart data={dadosCategoria} selecionado={detalheCategoria} onSliceClick={(label)=>setDetalheCategoria(detalheCategoria===label ? null : label)} />
               <div style={{display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center"}}>
                 {dadosCategoria.map(d=>(
-                  <span key={d.label} title={fmtMoney(d.value)} style={{display:"flex",alignItems:"center",gap:6,fontSize:13}}>
+                  <span
+                    key={d.label}
+                    title={fmtMoney(d.value)}
+                    onClick={()=>setDetalheCategoria(detalheCategoria===d.label ? null : d.label)}
+                    style={{display:"flex",alignItems:"center",gap:6,fontSize:13,cursor:"pointer",fontWeight:detalheCategoria===d.label?600:400,textDecoration:detalheCategoria===d.label?"underline":"none"}}
+                  >
                     <span style={{width:10,height:10,borderRadius:3,background:d.color,display:"inline-block"}}></span>
                     {d.label}
                   </span>
                 ))}
               </div>
+              {detalheCategoria && (itensPorCategoria[detalheCategoria]||[]).length>0 && (
+                <div style={{width:"100%", marginTop:6, paddingTop:12, borderTop:"1px dashed var(--paper-line)"}}>
+                  <p className="helper" style={{marginTop:0, marginBottom:8}}>Compõem "{detalheCategoria}":</p>
+                  {itensPorCategoria[detalheCategoria].map((it,i)=>(
+                    <div className="ledger-row" key={i} style={{gridTemplateColumns:"1fr auto"}}>
+                      <span style={{fontSize:13}}>{it.descricao}{it.extra ? ` · ${it.extra}` : ""}</span>
+                      <span className="money neg" style={{fontSize:13}}>{fmtMoney(it.valor)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1615,15 +1636,31 @@ function Dashboard({data}){
           {dadosPessoa.length===0 && <div className="empty-state">Nenhuma compra de cartão neste mês.</div>}
           {dadosPessoa.length>0 && (
             <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:14}}>
-              <DonutChart data={dadosPessoa} />
+              <DonutChart data={dadosPessoa} selecionado={detalhePessoa} onSliceClick={(label)=>setDetalhePessoa(detalhePessoa===label ? null : label)} />
               <div style={{display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center"}}>
                 {dadosPessoa.map(d=>(
-                  <span key={d.label} title={fmtMoney(d.value)} style={{display:"flex",alignItems:"center",gap:6,fontSize:13}}>
+                  <span
+                    key={d.label}
+                    title={fmtMoney(d.value)}
+                    onClick={()=>setDetalhePessoa(detalhePessoa===d.label ? null : d.label)}
+                    style={{display:"flex",alignItems:"center",gap:6,fontSize:13,cursor:"pointer",fontWeight:detalhePessoa===d.label?600:400,textDecoration:detalhePessoa===d.label?"underline":"none"}}
+                  >
                     <span style={{width:10,height:10,borderRadius:3,background:d.color,display:"inline-block"}}></span>
                     {d.label}
                   </span>
                 ))}
               </div>
+              {detalhePessoa && (itensPorPessoa[detalhePessoa]||[]).length>0 && (
+                <div style={{width:"100%", marginTop:6, paddingTop:12, borderTop:"1px dashed var(--paper-line)"}}>
+                  <p className="helper" style={{marginTop:0, marginBottom:8}}>Compras de "{detalhePessoa}":</p>
+                  {itensPorPessoa[detalhePessoa].map((c,i)=>(
+                    <div className="ledger-row" key={i} style={{gridTemplateColumns:"1fr auto"}}>
+                      <span style={{fontSize:13}}>{c.descricao} · parcela {c.parcela_atual}/{c.parcela_total}</span>
+                      <span className="money neg" style={{fontSize:13}}>{fmtMoney(c.valor_parcela)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {creditosMes < 0 && (
@@ -1638,81 +1675,34 @@ function Dashboard({data}){
           {dadosStatus.length===0 && <div className="empty-state">Nenhuma despesa com vencimento/status neste mês.</div>}
           {dadosStatus.length>0 && (
             <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:14}}>
-              <DonutChart data={dadosStatus} />
+              <DonutChart data={dadosStatus} selecionado={detalheStatus} onSliceClick={(label)=>setDetalheStatus(detalheStatus===label ? null : label)} />
               <div style={{display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center"}}>
                 {dadosStatus.map(d=>(
-                  <span key={d.label} title={fmtMoney(d.value)} style={{display:"flex",alignItems:"center",gap:6,fontSize:13}}>
+                  <span
+                    key={d.label}
+                    title={fmtMoney(d.value)}
+                    onClick={()=>setDetalheStatus(detalheStatus===d.label ? null : d.label)}
+                    style={{display:"flex",alignItems:"center",gap:6,fontSize:13,cursor:"pointer",fontWeight:detalheStatus===d.label?600:400,textDecoration:detalheStatus===d.label?"underline":"none"}}
+                  >
                     <span style={{width:10,height:10,borderRadius:3,background:d.color,display:"inline-block"}}></span>
                     {d.label}
                   </span>
                 ))}
               </div>
+              {detalheStatus && (itensPorStatus[detalheStatus]||[]).length>0 && (
+                <div style={{width:"100%", marginTop:6, paddingTop:12, borderTop:"1px dashed var(--paper-line)"}}>
+                  <p className="helper" style={{marginTop:0, marginBottom:8}}>Despesas "{detalheStatus}":</p>
+                  {itensPorStatus[detalheStatus].map((l,i)=>(
+                    <div className="ledger-row" key={i} style={{gridTemplateColumns:"1fr auto"}}>
+                      <span style={{fontSize:13}}>{l.descricao} · {l.categoria}</span>
+                      <span className="money neg" style={{fontSize:13}}>{fmtMoney(l.valor)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           <p className="helper" style={{marginTop:14}}>Só considera despesas com vencimento e/ou status marcados no lançamento.</p>
-        </div>
-      </div>
-
-      <div className="card">
-        <h2>Detalhamento</h2>
-        <p className="helper" style={{marginBottom:16}}>A visão "micro" por trás dos três gráficos acima — {mesLabel(mesFiltro)}.</p>
-        <div style={{display:"flex", gap:24, flexWrap:"wrap"}}>
-          <div style={{flex:1, minWidth:240}}>
-            <p style={{fontWeight:600, fontSize:14, marginBottom:8, color:"var(--brown-700)"}}>Por categoria</p>
-            {dadosCategoria.length===0 && <p className="helper">Nenhuma despesa neste mês.</p>}
-            {dadosCategoria.map(d=>(
-              <div key={d.label} style={{marginBottom:12}}>
-                <div style={{fontSize:13, fontWeight:600, marginBottom:4, display:"flex", alignItems:"center", gap:6}}>
-                  <span style={{width:9,height:9,borderRadius:3,background:d.color,display:"inline-block"}}></span>
-                  {d.label} <span style={{color:"var(--ink-soft)", fontWeight:400}}>— {fmtMoney(d.value)}</span>
-                </div>
-                {(itensPorCategoria[d.label]||[]).map((it,i)=>(
-                  <div key={i} style={{display:"flex", justifyContent:"space-between", fontSize:12, padding:"3px 0 3px 15px", color:"var(--ink-soft)"}}>
-                    <span>{it.descricao}{it.extra ? ` · ${it.extra}` : ""}</span>
-                    <span>{fmtMoney(it.valor)}</span>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-
-          <div style={{flex:1, minWidth:240}}>
-            <p style={{fontWeight:600, fontSize:14, marginBottom:8, color:"var(--brown-700)"}}>Por pessoa (cartão)</p>
-            {dadosPessoa.length===0 && <p className="helper">Nenhuma compra de cartão neste mês.</p>}
-            {dadosPessoa.map(d=>(
-              <div key={d.label} style={{marginBottom:12}}>
-                <div style={{fontSize:13, fontWeight:600, marginBottom:4, display:"flex", alignItems:"center", gap:6}}>
-                  <span style={{width:9,height:9,borderRadius:3,background:d.color,display:"inline-block"}}></span>
-                  {d.label} <span style={{color:"var(--ink-soft)", fontWeight:400}}>— {fmtMoney(d.value)}</span>
-                </div>
-                {(itensPorPessoa[d.label]||[]).map((c,i)=>(
-                  <div key={i} style={{display:"flex", justifyContent:"space-between", fontSize:12, padding:"3px 0 3px 15px", color:"var(--ink-soft)"}}>
-                    <span>{c.descricao} · parcela {c.parcela_atual}/{c.parcela_total}</span>
-                    <span>{fmtMoney(c.valor_parcela)}</span>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-
-          <div style={{flex:1, minWidth:240}}>
-            <p style={{fontWeight:600, fontSize:14, marginBottom:8, color:"var(--brown-700)"}}>Por status</p>
-            {dadosStatus.length===0 && <p className="helper">Nenhuma despesa com status neste mês.</p>}
-            {dadosStatus.map(d=>(
-              <div key={d.label} style={{marginBottom:12}}>
-                <div style={{fontSize:13, fontWeight:600, marginBottom:4, display:"flex", alignItems:"center", gap:6}}>
-                  <span style={{width:9,height:9,borderRadius:3,background:d.color,display:"inline-block"}}></span>
-                  {d.label} <span style={{color:"var(--ink-soft)", fontWeight:400}}>— {fmtMoney(d.value)}</span>
-                </div>
-                {(itensPorStatus[d.label]||[]).map((l,i)=>(
-                  <div key={i} style={{display:"flex", justifyContent:"space-between", fontSize:12, padding:"3px 0 3px 15px", color:"var(--ink-soft)"}}>
-                    <span>{l.descricao} · {l.categoria}</span>
-                    <span>{fmtMoney(l.valor)}</span>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
         </div>
       </div>
 
@@ -1722,7 +1712,7 @@ function Dashboard({data}){
           {dadosReceita.length===0 && <div className="empty-state">Nenhuma receita neste mês ainda.</div>}
           {dadosReceita.length>0 && (
             <div style={{display:"flex", flexDirection:"column", alignItems:"center", gap:14}}>
-              <DonutChart data={dadosReceita} />
+              <DonutChart data={dadosReceita} selecionado={detalheReceita} onSliceClick={(label)=>setDetalheReceita(detalheReceita===label ? null : label)} />
               <div style={{display:"flex", flexWrap:"wrap", gap:10, justifyContent:"center"}}>
                 {dadosReceita.map(d=>(
                   <span
