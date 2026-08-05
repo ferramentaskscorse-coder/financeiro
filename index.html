@@ -1503,10 +1503,14 @@ function Dashboard({data}){
     .sort((a,b)=>b[1]-a[1])
     .map(([label,value],i)=>({ label, value, color: PALETA_CORES[i % PALETA_CORES.length] }));
 
-  // Alerta de contas a pagar — só do mês selecionado no filtro "Ver mês"
+  // Alerta de contas a pagar — vencidas/vence hoje olham o mês selecionado inteiro,
+  // mas "a vencer" fica limitado à semana vigente (7 dias), pra não poluir a tela.
   const hojeDate = new Date();
   hojeDate.setHours(0,0,0,0);
   const hojeStr = `${hojeDate.getFullYear()}-${String(hojeDate.getMonth()+1).padStart(2,"0")}-${String(hojeDate.getDate()).padStart(2,"0")}`;
+  const em7dias = new Date(hojeDate);
+  em7dias.setDate(em7dias.getDate()+7);
+  const em7diasStr = `${em7dias.getFullYear()}-${String(em7dias.getMonth()+1).padStart(2,"0")}-${String(em7dias.getDate()).padStart(2,"0")}`;
   const despesasPendentesMes = data.lancamentos.filter(l =>
     l.tipo==="despesa" && l.status_pagamento!=="pago" && l.data_vencimento && l.data_vencimento.slice(0,7)===mesFiltro
   );
@@ -1515,7 +1519,7 @@ function Dashboard({data}){
     .sort((a,b)=>a.data_vencimento.localeCompare(b.data_vencimento));
   const contasVenceHoje = despesasPendentesMes.filter(l => l.data_vencimento === hojeStr);
   const contasProximaSemana = despesasPendentesMes
-    .filter(l => l.data_vencimento > hojeStr)
+    .filter(l => l.data_vencimento > hojeStr && l.data_vencimento <= em7diasStr)
     .sort((a,b)=>a.data_vencimento.localeCompare(b.data_vencimento));
 
   // Previsão de despesa do cartão — olha os próximos 6 meses
@@ -1581,7 +1585,7 @@ function Dashboard({data}){
           )}
           {contasProximaSemana.length>0 && (
             <div>
-              <p className="helper" style={{fontWeight:600, marginBottom:6}}>A vencer em {mesLabel(mesFiltro)}</p>
+              <p className="helper" style={{fontWeight:600, marginBottom:6}}>A vencer nos próximos 7 dias</p>
               {contasProximaSemana.map(l=>(
                 <div className="ledger-row" key={l.id} style={{gridTemplateColumns:"1fr auto"}}>
                   <span style={{fontSize:13}}>{l.descricao} · vence {l.data_vencimento.split("-").reverse().join("/")}</span>
