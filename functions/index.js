@@ -97,18 +97,18 @@ exports.parseVoz = onRequest(
       }
 
       const prompt =
-        'Interprete esta frase em portugues falada por uma empreendedora sobre um lancamento financeiro e retorne APENAS um JSON, sem markdown, sem texto antes ou depois, no formato exato: {"tipo": "receita" ou "despesa", "natureza": "fixa" ou "variavel", "descricao": string curta, "valor": number, "categoria": string curta}. Frase: "' +
+        'Interprete esta frase em portugues falada por uma empreendedora, que pode conter UM OU MAIS lancamentos financeiros separados (ex: por "e", "depois", "proximo", virgula). Retorne APENAS um array JSON, sem markdown, sem texto antes ou depois, no formato exato: [{"tipo": "receita" ou "despesa", "natureza": "fixa" ou "variavel", "descricao": string curta, "valor": number, "categoria": string curta, "forma_pagamento": "Pix" ou "Debito" ou "Credito" ou "Dinheiro" ou null}]. Frase: "' +
         texto +
-        '". Regras: se a frase menciona recebimento, venda, pagamento de cliente = receita. Se menciona gasto, compra, pagamento de conta = despesa. Se nao indicar claramente fixa ou variavel, assuma variavel. Valor deve ser so o numero, sem R$.';
+        '". Regras: se a frase menciona recebimento, venda, pagamento de cliente = receita. Se menciona gasto, compra, pagamento de conta = despesa. Se nao indicar claramente fixa ou variavel, assuma variavel. Valor deve ser so o numero, sem R$. forma_pagamento so preenche se a frase mencionar explicitamente (pix, cartao de credito, cartao de debito, dinheiro/especie) — senao retorne null. Cada lancamento mencionado na frase vira um item separado no array, mesmo que sejam so 2 ou 3 palavras cada.';
 
       const claudeResponse = await callClaude(ANTHROPIC_API_KEY.value(), {
         model: "claude-sonnet-4-6",
-        max_tokens: 400,
+        max_tokens: 1200,
         messages: [{ role: "user", content: prompt }],
       });
 
-      const lancamento = extrairJson(claudeResponse);
-      res.status(200).json({ lancamento });
+      const lancamentos = extrairJson(claudeResponse);
+      res.status(200).json({ lancamentos: Array.isArray(lancamentos) ? lancamentos : [lancamentos] });
     } catch (err) {
       logger.error("Erro em parseVoz:", err);
       res.status(500).json({ error: err.message || "Erro ao interpretar o áudio" });

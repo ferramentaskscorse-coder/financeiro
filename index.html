@@ -326,6 +326,7 @@ const MESES = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov"
 // Lista fixa de categorias — pra adicionar uma nova, edite aqui e faça o deploy de novo.
 // Não é editável pela interface, de propósito (evita categoria duplicada/escrita diferente).
 const CATEGORIAS = ["Taxi", "Alimentação", "Moradia", "Outros"];
+const FORMAS_PAGAMENTO = ["Pix", "Débito", "Crédito", "Dinheiro"];
 
 // Agrupa descrições parecidas sob um nome único no relatório "Gasto por estabelecimento".
 // Pra adicionar uma regra nova, edite aqui e faça o deploy de novo.
@@ -662,13 +663,14 @@ function Lancamentos({data, updateData}){
   const [valor, setValor] = useState("");
   const [categoria, setCategoria] = useState("");
   const [mesRef, setMesRef] = useState(mesRefAtual());
+  const [formaPagamento, setFormaPagamento] = useState("");
   const [dataVencimento, setDataVencimento] = useState("");
   const [statusPagamento, setStatusPagamento] = useState("pendente");
   const [listening, setListening] = useState(false);
   const [processingVoice, setProcessingVoice] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [voiceError, setVoiceError] = useState(null);
-  const [voiceFilled, setVoiceFilled] = useState(false);
+  const [revisaoVoz, setRevisaoVoz] = useState(null);
   const [erroValidacao, setErroValidacao] = useState(null);
   const [editandoId, setEditandoId] = useState(null);
   const [edicaoTemp, setEdicaoTemp] = useState(null);
@@ -692,21 +694,55 @@ function Lancamentos({data, updateData}){
       if(!response.ok || json.error){
         throw new Error(json.error || "Erro ao interpretar o áudio");
       }
-      const parsed = json.lancamento;
-      if(parsed.tipo) setTipo(parsed.tipo);
-      if(parsed.natureza) setNatureza(parsed.natureza);
-      if(parsed.descricao) setDescricao(parsed.descricao);
-      if(parsed.valor) setValor(String(parsed.valor));
-      const regraCategoria = categorizarAutomatico(parsed.descricao, data.categoriaRegras);
-      if(regraCategoria) setCategoria(regraCategoria);
-      else if(parsed.categoria) setCategoria(parsed.categoria);
-      setVoiceFilled(true);
+      const itens = json.lancamentos || [];
+      if(itens.length===0) throw new Error("Não entendi nenhum lançamento na fala.");
+      setRevisaoVoz(itens.map(item => {
+        const regraCategoria = categorizarAutomatico(item.descricao, data.categoriaRegras);
+        return {
+          id: uid(),
+          tipo: item.tipo === "receita" ? "receita" : "despesa",
+          natureza: item.natureza === "fixa" ? "fixa" : "variavel",
+          descricao: item.descricao || "",
+          valor: item.valor || 0,
+          categoria: regraCategoria || item.categoria || "Outros",
+          forma_pagamento: item.forma_pagamento || "",
+          mes_referencia: mesRefAtual(),
+        };
+      }));
     }catch(e){
       console.error("Erro ao interpretar voz:", e);
-      setVoiceError("Não consegui interpretar o áudio automaticamente. Confira e preencha os campos abaixo manualmente antes de adicionar.");
+      setVoiceError("Não consegui interpretar o áudio automaticamente. Preencha manualmente abaixo.");
     }finally{
       setProcessingVoice(false);
     }
+  }
+
+  function atualizarItemRevisao(id, campo, valor){
+    setRevisaoVoz(itens => itens.map(it => it.id===id ? {...it, [campo]: valor} : it));
+  }
+  function removerItemRevisao(id){
+    setRevisaoVoz(itens => itens.filter(it => it.id!==id));
+  }
+  function confirmarRevisaoVoz(){
+    const novos = revisaoVoz.map(item => ({
+      id: uid(),
+      tipo: item.tipo,
+      natureza: item.natureza,
+      descricao: item.descricao,
+      valor: parseFloat(item.valor) || 0,
+      categoria: item.categoria || "Outros",
+      forma_pagamento: item.forma_pagamento || null,
+      mes_referencia: item.mes_referencia,
+      data_vencimento: null,
+      status_pagamento: item.tipo==="despesa" ? "pendente" : null,
+    }));
+    updateData({ ...data, lancamentos: [...novos, ...data.lancamentos] });
+    setRevisaoVoz(null);
+    setTranscript("");
+  }
+  function cancelarRevisaoVoz(){
+    setRevisaoVoz(null);
+    setTranscript("");
   }
 
   function toggleVoice(){
@@ -722,15 +758,24 @@ function Lancamentos({data, updateData}){
     const recognition = new SpeechRecognition();
     recognition.lang = "pt-BR";
     recognition.interimResults = false;
+    recognition.continuous = true; // permite falar vários lançamentos com pausa, até você tocar de novo pra parar
     recognition.maxAlternatives = 1;
-    recognition.onstart = () => { setListening(true); setTranscript(""); setVoiceError(null); setVoiceFilled(false); };
+    recognition.onstart = () => { setListening(true); setTranscript(""); setVoiceError(null); };
     recognition.onresult = (event) => {
-      const texto = event.results[0][0].transcript;
-      setTranscript(texto);
-      parseVoiceText(texto);
+      let textoCompleto = "";
+      for(let i=0; i<event.results.length; i++){
+        textoCompleto += event.results[i][0].transcript + ". ";
+      }
+      setTranscript(textoCompleto.trim());
     };
     recognition.onerror = () => { setVoiceError("Não consegui captar o áudio. Verifique a permissão do microfone."); setListening(false); };
-    recognition.onend = () => setListening(false);
+    recognition.onend = () => {
+      setListening(false);
+      setTranscript(atual => {
+        if(atual) parseVoiceText(atual);
+        return atual;
+      });
+    };
     recognitionRef.current = recognition;
     recognition.start();
   }
@@ -750,12 +795,13 @@ function Lancamentos({data, updateData}){
       valor: parseFloat(valor),
       categoria: categoria || "Outros",
       mes_referencia: mesRef,
+      forma_pagamento: formaPagamento || null,
       data_vencimento: tipo==="despesa" ? (dataVencimento || null) : null,
       status_pagamento: tipo==="despesa" ? statusPagamento : null,
     };
     const next = { ...data, lancamentos: [novo, ...data.lancamentos] };
     updateData(next);
-    setDescricao(""); setValor(""); setCategoria(""); setVoiceFilled(false); setTranscript(""); setDataVencimento(""); setStatusPagamento("pendente");
+    setDescricao(""); setValor(""); setCategoria(""); setFormaPagamento(""); setTranscript(""); setDataVencimento(""); setStatusPagamento("pendente");
   }
   function remover(id){
     updateData({ ...data, lancamentos: data.lancamentos.filter(l=>l.id!==id) });
@@ -769,6 +815,7 @@ function Lancamentos({data, updateData}){
       valor: l.valor,
       categoria: l.categoria || "Outros",
       mes_referencia: l.mes_referencia,
+      forma_pagamento: l.forma_pagamento || "",
       data_vencimento: l.data_vencimento || "",
       status_pagamento: l.status_pagamento || "pendente",
     });
@@ -785,6 +832,7 @@ function Lancamentos({data, updateData}){
             valor: parseFloat(edicaoTemp.valor),
             categoria: edicaoTemp.categoria,
             mes_referencia: edicaoTemp.mes_referencia,
+            forma_pagamento: edicaoTemp.forma_pagamento || null,
             data_vencimento: edicaoTemp.tipo==="despesa" ? (edicaoTemp.data_vencimento || null) : null,
             status_pagamento: edicaoTemp.tipo==="despesa" ? edicaoTemp.status_pagamento : null,
           }
@@ -819,12 +867,54 @@ function Lancamentos({data, updateData}){
           </button>
           {transcript && <span className="voice-transcript">"{transcript}"</span>}
         </div>
+        {listening && <p className="helper" style={{marginTop:-8, marginBottom:14}}>Pode falar mais de um lançamento seguido (ex: "gastei 50 de gasolina, recebi 200 de consultoria"). Toque no botão de novo quando terminar.</p>}
         {voiceError && <p className="helper" style={{color:"var(--wine)", marginTop:-8, marginBottom:14}}>{voiceError}</p>}
-        {voiceFilled && (
-          <div style={{background:"var(--gold-soft)", border:"1px solid var(--gold)", borderRadius:8, padding:"8px 12px", fontSize:13, color:"#6b5216", marginBottom:14}}>
-            Preenchi os campos abaixo com base no que você falou. Confira tipo, valor e descrição antes de clicar em "Adicionar lançamento".
+
+        {revisaoVoz && (
+          <div style={{marginBottom:16}}>
+            <p className="helper" style={{marginBottom:10}}>
+              Entendi {revisaoVoz.length} {revisaoVoz.length===1 ? "lançamento" : "lançamentos"} — confira antes de adicionar:
+            </p>
+            <table className="review-table">
+              <thead>
+                <tr><th>Tipo</th><th>Descrição</th><th>Valor</th><th>Categoria</th><th>Pagamento</th><th></th></tr>
+              </thead>
+              <tbody>
+                {revisaoVoz.map(item=>(
+                  <tr key={item.id}>
+                    <td>
+                      <select value={item.tipo} onChange={e=>atualizarItemRevisao(item.id,"tipo",e.target.value)}>
+                        <option value="receita">Receita</option>
+                        <option value="despesa">Despesa</option>
+                      </select>
+                    </td>
+                    <td><input value={item.descricao} onChange={e=>atualizarItemRevisao(item.id,"descricao",e.target.value)} style={{minWidth:140}} /></td>
+                    <td><input type="number" step="0.01" style={{width:90}} value={item.valor} onChange={e=>atualizarItemRevisao(item.id,"valor",e.target.value)} /></td>
+                    <td>
+                      <select value={item.categoria} onChange={e=>atualizarItemRevisao(item.id,"categoria",e.target.value)}>
+                        {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </td>
+                    <td>
+                      <select value={item.forma_pagamento} onChange={e=>atualizarItemRevisao(item.id,"forma_pagamento",e.target.value)}>
+                        <option value="">-</option>
+                        {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{f}</option>)}
+                      </select>
+                    </td>
+                    <td><button className="btn-danger" onClick={()=>removerItemRevisao(item.id)}>Remover</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{marginTop:14, display:"flex", gap:10}}>
+              <button className="btn-primary" onClick={confirmarRevisaoVoz}>Confirmar e adicionar {revisaoVoz.length>1?"todos":""}</button>
+              <button className="btn-ghost" onClick={cancelarRevisaoVoz}>Cancelar</button>
+            </div>
           </div>
         )}
+
+        {!revisaoVoz && (
+        <React.Fragment>
         <div className="row row-4">
           <div>
             <label>Tipo</label>
@@ -852,7 +942,7 @@ function Lancamentos({data, updateData}){
             <input type="month" value={mesRef} onChange={e=>setMesRef(e.target.value)} />
           </div>
         </div>
-        <div className="row row-2">
+        <div className="row row-3">
           <div>
             <label>Descrição</label>
             <input
@@ -870,6 +960,13 @@ function Lancamentos({data, updateData}){
           <div>
             <label>Valor (R$)</label>
             <input type="number" step="0.01" value={valor} onChange={e=>setValor(e.target.value)} placeholder="0,00" />
+          </div>
+          <div>
+            <label>Forma de pagamento (opcional)</label>
+            <select value={formaPagamento} onChange={e=>setFormaPagamento(e.target.value)}>
+              <option value="">-</option>
+              {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
           </div>
         </div>
         {tipo==="despesa" && (
@@ -889,6 +986,8 @@ function Lancamentos({data, updateData}){
         )}
         <button className="btn-primary" onClick={addLancamento}>Adicionar lançamento</button>
         {erroValidacao && <p className="helper" style={{color:"var(--wine)", marginTop:8}}>{erroValidacao}</p>}
+        </React.Fragment>
+        )}
       </div>
 
       <div className="card">
@@ -924,7 +1023,7 @@ function Lancamentos({data, updateData}){
                     <input type="month" value={edicaoTemp.mes_referencia} onChange={e=>setEdicaoTemp({...edicaoTemp, mes_referencia:e.target.value})} />
                   </div>
                 </div>
-                <div className="row row-2" style={{marginBottom:10}}>
+                <div className="row row-3" style={{marginBottom:10}}>
                   <div>
                     <label>Descrição</label>
                     <input value={edicaoTemp.descricao} onChange={e=>setEdicaoTemp({...edicaoTemp, descricao:e.target.value})} />
@@ -932,6 +1031,13 @@ function Lancamentos({data, updateData}){
                   <div>
                     <label>Valor (R$)</label>
                     <input type="number" step="0.01" value={edicaoTemp.valor} onChange={e=>setEdicaoTemp({...edicaoTemp, valor:e.target.value})} />
+                  </div>
+                  <div>
+                    <label>Forma de pagamento</label>
+                    <select value={edicaoTemp.forma_pagamento} onChange={e=>setEdicaoTemp({...edicaoTemp, forma_pagamento:e.target.value})}>
+                      <option value="">-</option>
+                      {FORMAS_PAGAMENTO.map(f => <option key={f} value={f}>{f}</option>)}
+                    </select>
                   </div>
                 </div>
                 {edicaoTemp.tipo==="despesa" && (
@@ -967,6 +1073,7 @@ function Lancamentos({data, updateData}){
                   {l.categoria} · <span className={`tag ${l.natureza==="fixa"?"tag-fixa":"tag-variavel"}`}>{l.natureza}</span> · {mesLabel(l.mes_referencia)}
                   {status && <> · <span className={`tag ${tagClasse}`}>{status}</span></>}
                   {l.data_vencimento && <> · vence {l.data_vencimento.split("-").reverse().join("/")}</>}
+                  {l.forma_pagamento && <> · {l.forma_pagamento}</>}
                 </div>
               </div>
               <span className={`money ${l.tipo==="receita"?"pos":"neg"}`}>{l.tipo==="receita"?"+":"-"}{fmtMoney(l.valor)}</span>
