@@ -1503,22 +1503,19 @@ function Dashboard({data}){
     .sort((a,b)=>b[1]-a[1])
     .map(([label,value],i)=>({ label, value, color: PALETA_CORES[i % PALETA_CORES.length] }));
 
-  // Alerta de contas a pagar — olha TODAS as despesas com vencimento, não só o mês filtrado
+  // Alerta de contas a pagar — só do mês selecionado no filtro "Ver mês"
   const hojeDate = new Date();
   hojeDate.setHours(0,0,0,0);
   const hojeStr = `${hojeDate.getFullYear()}-${String(hojeDate.getMonth()+1).padStart(2,"0")}-${String(hojeDate.getDate()).padStart(2,"0")}`;
-  const em7dias = new Date(hojeDate);
-  em7dias.setDate(em7dias.getDate()+7);
-  const despesasPendentes = data.lancamentos.filter(l => l.tipo==="despesa" && l.status_pagamento!=="pago" && l.data_vencimento);
-  const contasVencidas = despesasPendentes
-    .filter(l => new Date(l.data_vencimento+"T00:00:00") < hojeDate)
+  const despesasPendentesMes = data.lancamentos.filter(l =>
+    l.tipo==="despesa" && l.status_pagamento!=="pago" && l.data_vencimento && l.data_vencimento.slice(0,7)===mesFiltro
+  );
+  const contasVencidas = despesasPendentesMes
+    .filter(l => l.data_vencimento < hojeStr)
     .sort((a,b)=>a.data_vencimento.localeCompare(b.data_vencimento));
-  const contasVenceHoje = despesasPendentes.filter(l => l.data_vencimento === hojeStr);
-  const contasProximaSemana = despesasPendentes
-    .filter(l => {
-      const v = new Date(l.data_vencimento+"T00:00:00");
-      return v > hojeDate && v <= em7dias;
-    })
+  const contasVenceHoje = despesasPendentesMes.filter(l => l.data_vencimento === hojeStr);
+  const contasProximaSemana = despesasPendentesMes
+    .filter(l => l.data_vencimento > hojeStr)
     .sort((a,b)=>a.data_vencimento.localeCompare(b.data_vencimento));
 
   // Previsão de despesa do cartão — olha os próximos 6 meses
@@ -1584,7 +1581,7 @@ function Dashboard({data}){
           )}
           {contasProximaSemana.length>0 && (
             <div>
-              <p className="helper" style={{fontWeight:600, marginBottom:6}}>Próximos 7 dias</p>
+              <p className="helper" style={{fontWeight:600, marginBottom:6}}>A vencer em {mesLabel(mesFiltro)}</p>
               {contasProximaSemana.map(l=>(
                 <div className="ledger-row" key={l.id} style={{gridTemplateColumns:"1fr auto"}}>
                   <span style={{fontSize:13}}>{l.descricao} · vence {l.data_vencimento.split("-").reverse().join("/")}</span>
