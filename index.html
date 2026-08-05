@@ -849,7 +849,13 @@ function Lancamentos({data, updateData}){
     setEdicaoTemp(null);
   }
 
-  const ordenados = [...data.lancamentos].sort((a,b)=> b.mes_referencia.localeCompare(a.mes_referencia));
+  const [filtroTipo, setFiltroTipo] = useState("todos");
+  const [filtroMes, setFiltroMes] = useState("");
+
+  const ordenados = [...data.lancamentos]
+    .filter(l => filtroTipo==="todos" || l.tipo===filtroTipo)
+    .filter(l => !filtroMes || l.mes_referencia===filtroMes)
+    .sort((a,b)=> b.mes_referencia.localeCompare(a.mes_referencia));
 
   return (
     <div>
@@ -994,7 +1000,24 @@ function Lancamentos({data, updateData}){
 
       <div className="card">
         <h2>Histórico</h2>
-        {ordenados.length===0 && <div className="empty-state">Nenhum lançamento ainda. Adicione o primeiro acima.</div>}
+        <div className="row row-2" style={{marginBottom:16}}>
+          <div>
+            <label>Filtrar por tipo</label>
+            <select value={filtroTipo} onChange={e=>setFiltroTipo(e.target.value)}>
+              <option value="todos">Todos</option>
+              <option value="receita">Receita</option>
+              <option value="despesa">Despesa</option>
+            </select>
+          </div>
+          <div>
+            <label>Filtrar por mês</label>
+            <div style={{display:"flex", gap:8, alignItems:"flex-end"}}>
+              <input type="month" value={filtroMes} onChange={e=>setFiltroMes(e.target.value)} style={{flex:1}} />
+              {filtroMes && <button className="btn-ghost" onClick={()=>setFiltroMes("")}>Limpar</button>}
+            </div>
+          </div>
+        </div>
+        {ordenados.length===0 && <div className="empty-state">{data.lancamentos.length===0 ? "Nenhum lançamento ainda. Adicione o primeiro acima." : "Nenhum lançamento encontrado com esse filtro."}</div>}
         {ordenados.map(l=>{
           if(editandoId === l.id){
             return (
